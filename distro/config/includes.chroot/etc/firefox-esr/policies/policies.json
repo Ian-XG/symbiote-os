@@ -1,0 +1,30 @@
+{
+  "policies": {
+    "ExtensionSettings": {
+      "firefox-compact-dark@mozilla.org": {
+        "installation_mode": "normal_installed",
+        "default_area": "navbar"
+      }
+    },
+    "Preferences": {
+      "ui.systemUsesDarkTheme": { "Value": 1, "Status": "locked" },
+      "browser.theme.content-theme": { "Value": 0, "Status": "default" },
+      "browser.theme.toolbar-theme": { "Value": 0, "Status": "default" },
+      "extensions.activeThemeID": { "Value": "firefox-compact-dark@mozilla.org", "Status": "default" },
+      "browser.tabs.inTitlebar": { "Value": 0, "Status": "default" },
+      "toolkit.legacyUserProfileCustomizations.stylesheets": { "Value": true, "Status": "locked" },
+      "widget.gtk.non-native-titlebar-buttons.enabled": { "Value": true, "Status": "default" }
+    },
+    "DisableProfileImport": true,
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "OverrideFirstRunPage": "",
+    "OverridePostUpdatePage": "",
+    "DontCheckDefaultBrowser": true,
+    "Homepage": {
+      "URL": "about:blank",
+      "StartPage": "homepage"
+    }
+  }
+}

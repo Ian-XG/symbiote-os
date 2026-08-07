@@ -1,0 +1,82 @@
+# NOTE: live-build passes every non-comment line straight to apt, and it does
+# NOT strip trailing comments. A line like "bluez  # -> bluetooth" is parsed as
+# three arguments and apt dies on the "->". Comments must own their whole line.
+
+# Session: a Wayland kiosk, not a full desktop environment.
+# labwc is a wlroots compositor with window rules, so apps get real windows
+# above the shell. cage was used before and could only ever show one window.
+labwc
+greetd
+seatd
+xwayland
+
+# Graphics and input
+libgl1-mesa-dri
+mesa-vulkan-drivers
+libinput10
+
+# Audio
+pipewire
+pipewire-pulse
+wireplumber
+
+# The system services the shell drives over D-Bus. These are what actually
+# provide wifi and bluetooth; the shell is only their client.
+# network-manager -> org.freedesktop.NetworkManager
+# bluez           -> org.bluez
+# upower          -> org.freedesktop.UPower
+network-manager
+wpasupplicant
+bluez
+bluez-firmware
+upower
+polkitd
+dbus-user-session
+
+# Qt6 runtime for the shell. Replaces the Electron/Chromium stack: the QML
+# scene graph keeps the hologram's vector geometry on the GPU instead of
+# re-rasterising it every frame, which is what cost a whole CPU core.
+libqt6quick6
+libqt6qml6
+libqt6gui6
+libqt6dbus6
+qml6-module-qtquick
+qml6-module-qtquick-window
+qml6-module-qtquick-shapes
+qml6-module-qtquick-layouts
+qml6-module-qtqml-workerscript
+qt6-wayland
+qt6-qpa-plugins
+
+# Recovery: without sudo a failed graphical session leaves no way back in.
+sudo
+
+# Graphics firmware. This machine class (2017 MacBook Pro) has BOTH an Intel
+# HD 630 and a Radeon Pro, and the display can be wired to either. Missing
+# firmware for the one in use means no working GL, which is one of the ways
+# the shell ends up on a blank screen.
+firmware-amd-graphics
+firmware-misc-nonfree
+
+# Firmware for real hardware. Wifi and bluetooth chips do not come up without it.
+firmware-linux
+firmware-iwlwifi
+firmware-realtek
+firmware-atheros
+firmware-brcm80211
+
+# Electron runtime dependencies
+libnss3
+libatk-bridge2.0-0
+libgtk-3-0
+libasound2
+libgbm1
+
+fonts-jetbrains-mono
+# Icon themes, so installed applications can show their own icon instead of a
+# drawn placeholder. hicolor is where an application drops its own; adwaita is
+# the fallback for anything that relies on the desktop providing one.
+hicolor-icon-theme
+adwaita-icon-theme
+# SVG icons are common; without this Qt loads the PNG variants only.
+libqt6svg6

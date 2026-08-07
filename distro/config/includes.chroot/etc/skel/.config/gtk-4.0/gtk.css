@@ -1,0 +1,141 @@
+/* GTK3 apps (Nautilus, the text editor, the image viewer) recoloured to the
+   Symbiote palette. Only surfaces, accents and typography are touched — layout
+   is left to the app so nothing breaks when it updates. */
+
+@define-color symbiote_bg          #080808;
+@define-color symbiote_bg_raised   #0d120f;
+@define-color symbiote_fg          #c8c8c8;
+@define-color symbiote_muted       #6b6f6b;
+@define-color symbiote_accent      #00ff88;
+@define-color symbiote_accent_dim  #04412a;
+@define-color symbiote_line        #1c1f1c;
+@define-color symbiote_alert       #ff1744;
+
+@define-color theme_bg_color        @symbiote_bg;
+@define-color theme_base_color      @symbiote_bg;
+@define-color theme_fg_color        @symbiote_fg;
+@define-color theme_text_color      @symbiote_fg;
+@define-color theme_selected_bg_color @symbiote_accent_dim;
+@define-color theme_selected_fg_color @symbiote_accent;
+@define-color borders               @symbiote_line;
+@define-color accent_color          @symbiote_accent;
+@define-color accent_bg_color       @symbiote_accent_dim;
+@define-color accent_fg_color       @symbiote_accent;
+@define-color destructive_color     @symbiote_alert;
+
+* {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10pt;
+  border-radius: 0;
+  outline-color: @symbiote_accent;
+}
+
+window, .background, dialog, popover, popover contents {
+  background-color: @symbiote_bg;
+  color: @symbiote_fg;
+}
+
+headerbar, .titlebar {
+  background: @symbiote_bg_raised;
+  border-bottom: 1px solid @symbiote_accent;
+  color: @symbiote_accent;
+  min-height: 34px;
+  text-shadow: none;
+}
+headerbar .title {
+  font-size: 9pt;
+  color: @symbiote_accent;
+}
+
+button {
+  background: transparent;
+  border: 1px solid @symbiote_line;
+  color: @symbiote_fg;
+  text-shadow: none;
+  padding: 4px 10px;
+}
+button:hover {
+  border-color: @symbiote_accent;
+  color: @symbiote_accent;
+  background: alpha(@symbiote_accent, 0.08);
+}
+button:checked, button:active {
+  background: @symbiote_accent_dim;
+  border-color: @symbiote_accent;
+  color: @symbiote_accent;
+}
+button.destructive-action:hover {
+  border-color: @symbiote_alert;
+  color: @symbiote_alert;
+  background: alpha(@symbiote_alert, 0.1);
+}
+
+entry, spinbutton, searchbar entry {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid @symbiote_line;
+  color: @symbiote_accent;
+  caret-color: @symbiote_accent;
+}
+entry:focus { border-color: @symbiote_accent; }
+
+/* Sidebars and lists: the file manager spends most of its time here. */
+placessidebar, .sidebar, stacksidebar {
+  background: @symbiote_bg;
+  border-right: 1px solid @symbiote_line;
+}
+row:selected, list row:selected, .view:selected {
+  background: @symbiote_accent_dim;
+  color: @symbiote_accent;
+}
+row:hover { background: alpha(@symbiote_accent, 0.06); }
+
+treeview.view, .view, iconview {
+  background: @symbiote_bg;
+  color: @symbiote_fg;
+}
+treeview.view:selected, iconview:selected { background: @symbiote_accent_dim; color: @symbiote_accent; }
+
+scrollbar { background: @symbiote_bg; border: none; }
+scrollbar slider {
+  background: @symbiote_line;
+  border-radius: 0;
+  min-width: 6px;
+  min-height: 6px;
+}
+scrollbar slider:hover { background: @symbiote_accent; }
+
+menu, .menu, .context-menu {
+  background: @symbiote_bg_raised;
+  border: 1px solid @symbiote_accent;
+  color: @symbiote_fg;
+}
+menuitem:hover { background: @symbiote_accent_dim; color: @symbiote_accent; }
+
+notebook > header { background: @symbiote_bg; border-color: @symbiote_line; }
+notebook > header tab:checked { border-bottom: 1px solid @symbiote_accent; color: @symbiote_accent; }
+
+progressbar progress { background: @symbiote_accent; }
+progressbar trough { background: @symbiote_line; }
+
+separator { background: @symbiote_line; }
+
+tooltip {
+  background: @symbiote_bg_raised;
+  border: 1px solid @symbiote_accent;
+  color: @symbiote_accent;
+}
+
+selection { background: @symbiote_accent_dim; color: @symbiote_accent; }
+
+/* libadwaita named colours (GTK4 apps read these instead of the GTK3 names) */
+@define-color window_bg_color      #080808;
+@define-color window_fg_color      #c8c8c8;
+@define-color view_bg_color        #080808;
+@define-color view_fg_color        #c8c8c8;
+@define-color headerbar_bg_color   #0d120f;
+@define-color headerbar_fg_color   #00ff88;
+@define-color sidebar_bg_color     #080808;
+@define-color sidebar_fg_color     #c8c8c8;
+@define-color card_bg_color        #0d120f;
+@define-color popover_bg_color     #0d120f;
+@define-color dialog_bg_color      #080808;

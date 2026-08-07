@@ -1,0 +1,44 @@
+# Security tooling available in Debian main.
+# Note: Metasploit and Burp Suite are NOT in Debian — they need either the Kali
+# repo or a vendor installer. See distro/README-tools.md before adding them.
+
+nmap
+ncat
+tcpdump
+wireshark
+tshark
+aircrack-ng
+hydra
+john
+hashcat
+sqlmap
+nikto
+dirb
+gobuster
+masscan
+netcat-openbsd
+socat
+openvpn
+wireguard-tools
+proxychains4
+whois
+dnsutils
+git
+python3
+python3-pip
+python3-venv
+build-essential
+
+# The shell reads the firewall with nft and falls back to iptables-save, and
+# the FIREWALL app runs `nft list ruleset`. Neither binary was installed, so
+# the panel reported "NOT RUNNING" for a machine that simply had no nft, and
+# the app opened a terminal saying command not found.
+nftables
+iptables
+# AppArmor confines applications to the files and capabilities they declare.
+# Debian ships the profiles but nothing turns them on; the hook does.
+apparmor
+apparmor-profiles
+apparmor-utils
+# For symbiote-persist --luks: encrypting the persistence partition.
+cryptsetup

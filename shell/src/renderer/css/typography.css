@@ -1,0 +1,26 @@
+/* Fonts come from the system (fonts-jetbrains-mono). The Google Fonts import
+   was removed: the shell blocks all network access, so it would never load. */
+:root{
+--font-mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',monospace;
+--font-mono-alt:'Space Mono',ui-monospace,monospace;
+--font-display:'Electrolize',var(--font-mono);
+--text-2xs:8px;
+--text-xs:9px;
+--text-sm:10px;
+--text-base:11px;
+--text-md:13px;
+--text-lg:16px;
+--text-xl:22px;
+--text-2xl:28px;
+--text-display:36px;
+--tracking-normal:0.02em;
+--tracking-wide:0.12em;
+--tracking-wider:0.22em;
+--tracking-widest:0.32em;
+--leading-tight:1.2;
+--leading-normal:1.5;
+--weight-regular:400;
+--weight-medium:500;
+--weight-bold:700;
+--weight-black:800;
+}

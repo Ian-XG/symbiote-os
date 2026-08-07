@@ -1,0 +1,33 @@
+{
+  "name": "symbiote-shell",
+  "version": "0.1.0",
+  "description": "Symbiote OS desktop shell",
+  "license": "GPL-3.0",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "SYMBIOTE_DEV=1 electron .",
+    "check": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/bridge/index.js && node --check src/main/bridge/system.js && node --check src/main/bridge/network.js && node --check src/main/bridge/bluetooth.js && node --check src/main/bridge/power.js",
+    "dist": "electron-builder --linux dir",
+    "bundle": "node scripts/build-renderer.mjs"
+  },
+  "dependencies": {
+    "dbus-next": "^0.10.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "lucide": "^0.468.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.0"
+  },
+  "build": {
+    "appId": "io.symbiote.shell",
+    "productName": "Symbiote Shell",
+    "linux": {
+      "target": "dir",
+      "category": "System"
+    }
+  }
+}

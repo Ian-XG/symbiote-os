@@ -1,0 +1,38 @@
+# labwc window decorations in the Symbiote palette.
+# Titlebars are the one piece of chrome the shell does not draw itself, so they
+# are made to read as part of the HUD: hairline accent border, mono label,
+# square corners, red only on close.
+
+border.width: 1
+padding.height: 5
+titlebar.height: 26
+
+window.active.border.color: #00ff88
+window.active.title.bg.color: #0a120d
+window.active.label.text.color: #00ff88
+window.active.button.unpressed.image.color: #00ff88
+window.active.button.hover.bg.color: #04412a
+window.active.button.close.hover.bg.color: #ff1744
+window.active.button.iconify.hover.bg.color: #04412a
+window.active.button.max.hover.bg.color: #04412a
+
+window.inactive.border.color: #1c1f1c
+window.inactive.title.bg.color: #080808
+window.inactive.label.text.color: #6b6f6b
+window.inactive.button.unpressed.image.color: #6b6f6b
+
+window.label.text.justify: center
+
+menu.items.bg.color: #0a120d
+menu.items.text.color: #c8c8c8
+menu.items.active.bg.color: #04412a
+menu.items.active.text.color: #00ff88
+menu.border.width: 1
+menu.border.color: #00ff88
+
+osd.bg.color: #0a120d
+osd.border.color: #00ff88
+osd.border.width: 1
+osd.label.text.color: #00ff88
+
+snapping.overlay.region.bg.color: #2600ff88

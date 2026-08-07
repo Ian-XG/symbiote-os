@@ -1,0 +1,89 @@
+#!/bin/bash
+# Turn a spare partition on the boot medium into persistent storage.
+#
+# A live image forgets everything on reboot — every setting changed, every
+# icon pinned, every file saved. live-build supports persistence, but it needs
+# a partition labelled "persistence" holding a persistence.conf, and nothing
+# creates that for you.
+#
+# This makes one, optionally encrypted. It never touches a mounted filesystem
+# and it always names the device and its size before doing anything.
+set -euo pipefail
+
+usage() {
+	cat <<'USAGE'
+symbiote-persist — create persistent storage for this live image
+
+    symbiote-persist list                  show candidate partitions
+    symbiote-persist init <device>         format <device> for persistence
+    symbiote-persist init <device> --luks  same, encrypted with a passphrase
+
+The device must be a partition (for example /dev/sdb3), not a whole disk, and
+must not be mounted. Everything on it is destroyed.
+USAGE
+}
+
+require_root() {
+	if [ "$(id -u)" -ne 0 ]; then
+		echo "This needs root: sudo symbiote-persist $*" >&2
+		exit 1
+	fi
+}
+
+case "${1:-}" in
+list)
+	echo "Partitions on this machine:"
+	lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT,TYPE | awk 'NR==1 || $NF=="part"'
+	echo
+	echo "The live medium itself is mounted; pick a partition that is not."
+	;;
+
+init)
+	require_root "$@"
+	dev="${2:-}"
+	[ -b "$dev" ] || { echo "Not a block device: $dev" >&2; exit 1; }
+
+	# Refuse a whole disk. Formatting /dev/sdb instead of /dev/sdb3 destroys
+	# the live image along with everything else on the stick.
+	if [ "$(lsblk -no TYPE "$dev" | head -1)" != "part" ]; then
+		echo "$dev is not a partition. Give a partition such as ${dev}1." >&2
+		exit 1
+	fi
+	if findmnt -S "$dev" >/dev/null 2>&1; then
+		echo "$dev is mounted. Unmount it first." >&2
+		exit 1
+	fi
+
+	size=$(lsblk -no SIZE "$dev" | head -1)
+	model=$(lsblk -no MODEL "$(lsblk -no PKNAME "$dev" | head -1)" 2>/dev/null || true)
+	echo "About to ERASE $dev ($size${model:+ on $model})."
+	read -r -p "Type ERASE to continue: " confirm
+	[ "$confirm" = "ERASE" ] || { echo "Cancelled."; exit 1; }
+
+	target="$dev"
+	if [ "${3:-}" = "--luks" ]; then
+		echo "Setting up encryption. You will be asked for a passphrase twice,"
+		echo "and again on every boot. There is no recovery if you forget it."
+		cryptsetup luksFormat "$dev"
+		cryptsetup open "$dev" symbiote-persistence
+		target=/dev/mapper/symbiote-persistence
+	fi
+
+	mkfs.ext4 -L persistence -F "$target"
+	mnt=$(mktemp -d)
+	mount "$target" "$mnt"
+	# "/ union" overlays the whole filesystem, so anything written anywhere
+	# survives — not just the home directory.
+	echo "/ union" > "$mnt/persistence.conf"
+	umount "$mnt"
+	rmdir "$mnt"
+	[ "$target" = "$dev" ] || cryptsetup close symbiote-persistence
+
+	echo
+	echo "Done. Reboot and this partition will hold your changes."
+	;;
+
+*)
+	usage
+	;;
+esac

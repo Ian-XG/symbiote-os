@@ -1,0 +1,12 @@
+# Autologin straight into the shell. This is a live ISO, so there is no
+# password prompt yet — that changes when we add the installer.
+[terminal]
+vt = 1
+
+[initial_session]
+command = "/usr/local/bin/symbiote-session"
+user = "symbiote"
+
+[default_session]
+command = "/usr/local/bin/symbiote-session"
+user = "symbiote"

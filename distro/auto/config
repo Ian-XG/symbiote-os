@@ -1,0 +1,19 @@
+#!/bin/sh
+# live-build configuration for the Symbiote OS live ISO.
+# Run via `lb config` (build.sh does this for you).
+set -e
+
+lb config noauto \
+	--distribution trixie \
+	--architectures amd64 \
+	--archive-areas "main contrib non-free non-free-firmware" \
+	--binary-images iso-hybrid \
+	--iso-application "Symbiote OS" \
+	--iso-publisher "Symbiote OS" \
+	--iso-volume "SYMBIOTE" \
+	--memtest none \
+	--apt-recommends false \
+	--debian-installer none \
+	--apt-indices false \
+	--bootappend-live "boot=live components quiet splash username=symbiote hostname=symbiote-01 persistence persistence-encryption=none,luks" \
+	"${@}"

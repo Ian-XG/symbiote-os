@@ -1,0 +1,28 @@
+# Build output
+distro/.build/
+distro/chroot/
+distro/chroot.files
+distro/binary/
+distro/cache/
+distro/*.iso
+distro/*.contents
+distro/*.files
+distro/*.packages
+distro/*.log
+*.iso
+
+# Electron shell: dependencies and generated bundles. The shell itself is kept
+# for now — the Qt port replaced it, but it is not retired until Qt is proven
+# on real hardware.
+shell/node_modules/
+shell/dist/
+shell/src/renderer/build/
+
+# Qt build trees
+shell-qt/build/
+shell-qt/.cache/
+
+# Headless captures used to review the design without booting an ISO
+shot.png
+
+.DS_Store

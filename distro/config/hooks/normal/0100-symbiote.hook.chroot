@@ -1,0 +1,52 @@
+#!/bin/sh
+# Runs inside the chroot while the image is being built.
+set -e
+
+echo "I: configuring symbiote session"
+
+# The live user greetd logs in as. live-build's own user is created later by
+# live-config, so we make ours explicitly and give it the seat/video access
+# cage needs to become DRM master.
+if ! id symbiote >/dev/null 2>&1; then
+	adduser --disabled-password --gecos "Symbiote Operator" symbiote
+fi
+
+# A known password, and sudo without one.
+#
+# This was --disabled-password only, which meant that when the graphical
+# session failed there was no way to log in on a VT and find out why — the
+# machine was simply unrecoverable. On a live image that is worse than the
+# minor exposure of a documented default credential.
+echo 'symbiote:symbiote' | chpasswd
+adduser symbiote sudo
+printf 'symbiote ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/symbiote
+chmod 0440 /etc/sudoers.d/symbiote
+adduser symbiote video
+adduser symbiote input
+adduser symbiote render
+adduser symbiote netdev      # lets NetworkManager accept its wifi calls
+adduser symbiote bluetooth   # lets BlueZ accept pairing calls
+
+chmod 755 /usr/local/bin/symbiote-session
+chmod 755 /usr/local/bin/symbiote-shell-run
+
+# Electron's sandbox needs a setuid helper unless unprivileged user namespaces
+# are enabled. Setting the bit is the supported fix — do NOT pass --no-sandbox.
+if [ -f /opt/symbiote/shell/chrome-sandbox ]; then
+	chown root:root /opt/symbiote/shell/chrome-sandbox
+	chmod 4755 /opt/symbiote/shell/chrome-sandbox
+fi
+
+systemctl enable greetd
+systemctl enable NetworkManager
+systemctl enable bluetooth
+systemctl enable seatd
+
+# Nothing should draw on the console before greetd takes vt1, but tty2-6 keep
+# their gettys on purpose: Ctrl+Alt+F2 is the way back in when the graphical
+# session will not start.
+systemctl disable getty@tty1.service || true
+systemctl enable getty@tty2.service || true
+systemctl enable getty@tty3.service || true
+
+echo "I: symbiote session configured"

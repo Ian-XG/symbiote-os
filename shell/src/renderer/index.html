@@ -1,0 +1,29 @@
+<meta charset="utf-8">
+<title>Symbiote Shell</title>
+<link rel="stylesheet" href="build/styles.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #080808; overflow: hidden; }
+  #stage {
+    position: absolute; top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    transform-origin: top left;
+  }
+  #crash {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 999;
+    background: #ff1744; color: #080808;
+    font: 12px 'JetBrains Mono', monospace;
+    padding: 8px 14px;
+  }
+</style>
+
+<div id="stage"><div id="root"></div></div>
+<div id="crash"></div>
+
+<!-- All local. The shell blocks network access, so nothing here may be a CDN. -->
+<script src="build/react.js"></script>
+<script src="build/react-dom.js"></script>
+<script src="build/lucide.js"></script>
+<script src="build/ds-bundle.js"></script>
+<script src="build/kit.js"></script>
+<script src="build/live-hud.js"></script>

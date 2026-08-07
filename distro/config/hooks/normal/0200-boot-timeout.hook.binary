@@ -1,0 +1,47 @@
+#!/bin/sh
+# Runs after the binary stage, on the assembled image tree.
+#
+# Debian live ships the boot menu with `timeout 0`, which in syslinux means
+# "wait forever". For a machine meant to boot into a desktop that is wrong: it
+# should show the menu briefly, then get on with it.
+#
+# The path is searched rather than assumed: live-build does not run binary
+# hooks from the directory this script first expected, and a hardcoded relative
+# path matched nothing while the echoes still printed — a silent no-op that
+# looked exactly like success. Hence also the count check at the end.
+set -e
+
+echo "I: setting boot menu timeout"
+
+patched=0
+
+# syslinux/isolinux counts in tenths of a second.
+for cfg in $(find . .. -maxdepth 4 -name 'isolinux.cfg' 2>/dev/null); do
+	if grep -q '^timeout' "$cfg"; then
+		sed -i 's/^timeout .*/timeout 50/' "$cfg"
+	else
+		printf 'timeout 50\n' >> "$cfg"
+	fi
+	# `prompt 0` alone still waits when the timeout is 0; both must be right.
+	sed -i 's/^prompt .*/prompt 0/' "$cfg"
+	echo "I:   patched $cfg"
+	patched=$((patched + 1))
+done
+
+# grub (used on UEFI) counts in whole seconds.
+for cfg in $(find . .. -maxdepth 5 -name 'grub.cfg' 2>/dev/null); do
+	if grep -q '^set timeout' "$cfg"; then
+		sed -i 's/^set timeout=.*/set timeout=5/' "$cfg"
+	else
+		printf 'set timeout=5\n' >> "$cfg"
+	fi
+	echo "I:   patched $cfg"
+	patched=$((patched + 1))
+done
+
+if [ "$patched" -eq 0 ]; then
+	echo "W: BOOT TIMEOUT NOT APPLIED - no bootloader config found from $(pwd)" >&2
+	echo "W: the ISO will sit at the boot menu until a key is pressed" >&2
+else
+	echo "I: boot menu auto-starts after 5 seconds ($patched file(s) patched)"
+fi

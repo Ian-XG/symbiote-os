@@ -1,0 +1,29 @@
+# User-facing apps the shell's taskbar launches.
+# No trailing comments: live-build feeds these lines to apt verbatim.
+
+firefox-esr
+
+# foot: Wayland-native terminal emulator
+foot
+
+# nautilus: file manager
+nautilus
+
+gnome-text-editor
+eog
+
+# Removable storage. Nautilus lists a drive it cannot mount without these:
+# udisks2 does the mounting, gvfs is how Nautilus asks it, and the two
+# filesystem drivers are what a disk formatted on a Mac or a PC actually uses.
+# Without them an external SSD appears and refuses to open, or never appears.
+udisks2
+gvfs
+gvfs-backends
+gvfs-fuse
+exfatprogs
+ntfs-3g
+dosfstools
+# Reading an Apple-formatted (APFS) disk is not possible on Debian at all;
+# HFS+ at least is. hfsutils and hfsprogs are gone from trixie — checked
+# against the archive rather than assumed, after hfsutils failed the build.
+hfsplus

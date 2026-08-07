@@ -1,0 +1,154 @@
+#!/bin/bash
+# bash, not sh: the logging below uses process substitution, which dash (which
+# is /bin/sh on Debian) does not support. With a #!/bin/sh shebang this script
+# died on its first line and the screen stayed blank.
+#
+# Starts the Wayland session: labwc as the compositor, the shell as its
+# permanent bottom window, apps floating above.
+# greetd runs this as the `symbiote` user after autologin.
+
+# Deliberately no `set -e`: a failure here must still reach the fallback that
+# reports it, not kill the session and leave a blank screen.
+
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export XDG_SESSION_TYPE=wayland
+export XDG_CURRENT_DESKTOP=Symbiote
+export MOZ_ENABLE_WAYLAND=1
+export ELECTRON_OZONE_PLATFORM_HINT=auto
+
+mkdir -p "$XDG_RUNTIME_DIR"
+
+SESSION_LOG=/tmp/symbiote-session.log
+exec > >(tee -a "$SESSION_LOG") 2>&1
+echo "=== symbiote session $(date) ==="
+
+# Kernel command line overrides, so a machine that will not start can be
+# rescued at the boot menu instead of needing a new ISO:
+#   symbiote.gl=sw     force software rendering
+#   symbiote.gl=hw     force hardware rendering
+#   symbiote.scale=2   force interface scale
+CMDLINE=$(cat /proc/cmdline 2>/dev/null)
+GL_OVERRIDE=""
+case "$CMDLINE" in
+	*symbiote.gl=sw*) GL_OVERRIDE=sw ;;
+	*symbiote.gl=hw*) GL_OVERRIDE=hw ;;
+esac
+for arg in $CMDLINE; do
+	case "$arg" in
+		symbiote.scale=*) export SYMBIOTE_SCALE="${arg#symbiote.scale=}" ;;
+	esac
+done
+
+# wlroots renders through GLES2/EGL by default, which needs working hardware
+# GL. A machine without it dies on startup with nothing on screen.
+#
+# The check is on the DRM driver rather than by trial-running the compositor:
+# a probe that guesses wrong leaves a black screen with no way to see why.
+# vmwgfx (VirtualBox/VMware SVGA) and vboxvideo advertise a render node but
+# their EGL is unreliable, so they are treated as software.
+# On a dual-GPU machine (this laptop class has both an Intel iGPU and a Radeon)
+# picking "the last driver found" is a coin toss, and picking the card that is
+# not wired to the panel gets you a working compositor drawing to nothing.
+# So: prefer the card that actually has a connected output.
+gpu=""
+gpu_card=""
+for conn in /sys/class/drm/card*-*; do
+	[ -f "$conn/status" ] || continue
+	[ "$(cat "$conn/status" 2>/dev/null)" = "connected" ] || continue
+	card=${conn%%-*}
+	[ -e "$card/device/driver" ] || continue
+	drv=$(basename "$(readlink -f "$card/device/driver")")
+	echo "connected output on $(basename "$card") via $drv"
+	# Widest connected mode, for the HiDPI decision below.
+	mode=$(head -n1 "$conn/modes" 2>/dev/null)
+	mode_w=${mode%%x*}
+	case "$mode_w" in
+		''|*[!0-9]*) ;;
+		*) [ "$mode_w" -gt "${panel_w:-0}" ] && panel_w=$mode_w ;;
+	esac
+	case "$drv" in
+		vmwgfx|vboxvideo|virtio_gpu) ;;
+		*) gpu="$drv"; gpu_card=$(basename "$card") ;;
+	esac
+done
+
+# Fall back to any render node if no connector reported itself connected.
+if [ -z "$gpu" ]; then
+	for node in /sys/class/drm/renderD*; do
+		[ -e "$node/device/driver" ] || continue
+		drv=$(basename "$(readlink -f "$node/device/driver")")
+		echo "drm render node: $drv"
+		case "$drv" in
+			vmwgfx|vboxvideo|virtio_gpu) ;;
+			*) gpu="$drv" ;;
+		esac
+	done
+fi
+
+# symbiote.drm=cardN on the kernel cmdline overrides the choice entirely.
+for arg in $CMDLINE; do
+	case "$arg" in
+		symbiote.drm=*) gpu_card="${arg#symbiote.drm=}" ;;
+	esac
+done
+# ── interface scale ────────────────────────────────────────────────────────
+# Set before anything starts, because Qt and GTK both read it at startup.
+#
+# The shell used to double a handful of its own layout values and leave the
+# type at its authored 8-11px. On this laptop's 2880px panel that produced
+# large panels full of unreadable text, and it did nothing at all for Firefox
+# or the file manager. Scaling the toolkits scales everything, crisply, for
+# every application.
+if [ -z "$SYMBIOTE_SCALE" ]; then
+	if [ "${panel_w:-0}" -ge 2200 ]; then
+		SYMBIOTE_SCALE=2
+	else
+		SYMBIOTE_SCALE=1
+	fi
+	echo "panel width ${panel_w:-unknown}px -> interface scale $SYMBIOTE_SCALE"
+else
+	echo "interface scale $SYMBIOTE_SCALE forced by kernel cmdline"
+fi
+export QT_SCALE_FACTOR="$SYMBIOTE_SCALE"
+export GDK_SCALE="$SYMBIOTE_SCALE"
+# GTK would otherwise scale the text a second time on top of GDK_SCALE.
+export GDK_DPI_SCALE=1
+
+if [ -n "$gpu_card" ] && [ -e "/dev/dri/$gpu_card" ]; then
+	export WLR_DRM_DEVICES="/dev/dri/$gpu_card"
+	echo "pinning compositor to /dev/dri/$gpu_card"
+fi
+
+use_software=0
+if [ "$GL_OVERRIDE" = "sw" ]; then
+	use_software=1
+	echo "software rendering forced by kernel cmdline"
+elif [ "$GL_OVERRIDE" = "hw" ]; then
+	echo "hardware rendering forced by kernel cmdline"
+elif [ -z "$gpu" ]; then
+	use_software=1
+fi
+
+if [ "$use_software" = "1" ]; then
+	echo "using software rendering"
+	export WLR_RENDERER=pixman
+	export LIBGL_ALWAYS_SOFTWARE=1
+	export GALLIUM_DRIVER=llvmpipe
+	# Chromium blocklists most software GL, so tell the shell to use its own
+	# software rasteriser instead of hunting for a driver it will reject.
+	export SYMBIOTE_SOFTWARE_GL=1
+	# Qt Quick draws its scene graph through OpenGL by default. Without a GPU
+	# that fails and the shell never appears — the same blank screen the
+	# compositor gave before it was told to use pixman. Qt has its own software
+	# rasteriser; this is the equivalent switch.
+	export QT_QUICK_BACKEND=software
+	export QT_OPENGL=software
+	export LIBGL_ALWAYS_SOFTWARE=1
+else
+	echo "using hardware rendering via $gpu"
+fi
+
+# labwc starts the wrapper, which reports any failure on screen rather than
+# leaving an empty desktop. The window rule in rc.xml pins the shell to the
+# bottom; apps launched later appear above it as real windows.
+exec labwc -s /usr/local/bin/symbiote-shell-run

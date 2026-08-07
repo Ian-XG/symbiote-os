@@ -1,0 +1,40 @@
+/* Let the operator manage the radios.
+ *
+ * Group membership is not enough. NetworkManager and BlueZ authorise through
+ * polkit, and polkit's default rules grant these actions to a user with an
+ * *active local session*. greetd starts the session through seatd, not
+ * logind, so there is no session for polkit to call active — every scan
+ * succeeded (reading is unauthenticated) and every connect was denied. That is
+ * exactly the reported symptom: the networks are listed, joining one does
+ * nothing.
+ *
+ * Scoped to the symbiote user and to the two subsystems the shell drives, not
+ * a blanket yes.
+ */
+polkit.addRule(function (action, subject) {
+    if (subject.user !== "symbiote")
+        return undefined;
+
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0
+        || action.id.indexOf("org.bluez.") === 0
+        || action.id.indexOf("org.freedesktop.bluez.") === 0) {
+        return polkit.Result.YES;
+    }
+
+    /* Mounting removable media. The drive was being detected and listed, and
+       then refused to open: udisks2 authorises through polkit exactly as
+       NetworkManager does, and hit the same missing-session wall. */
+    if (action.id.indexOf("org.freedesktop.udisks2.") === 0)
+        return polkit.Result.YES;
+
+    /* Shutdown and restart, for the power menu. Without these the only way
+       off the machine is the button on the case. */
+    if (action.id === "org.freedesktop.login1.power-off"
+        || action.id === "org.freedesktop.login1.reboot"
+        || action.id === "org.freedesktop.login1.power-off-multiple-sessions"
+        || action.id === "org.freedesktop.login1.reboot-multiple-sessions") {
+        return polkit.Result.YES;
+    }
+
+    return undefined;
+});

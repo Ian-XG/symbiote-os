@@ -1,0 +1,18 @@
+:root{
+--blur-glass:blur(14px)/* @kind other */;
+--glow-xs:0 0 4px var(--state-ok-glow);
+--glow-sm:0 0 8px var(--state-ok-glow),0 0 2px rgba(0,255,136,.6);
+--glow-md:0 0 16px var(--state-ok-glow),0 0 4px rgba(0,255,136,.5);
+--glow-lg:0 0 32px var(--state-ok-glow),0 0 8px rgba(0,255,136,.4);
+--glow-critical:0 0 16px var(--state-critical-glow),0 0 4px rgba(255,23,68,.6);
+--ease-symbiote:cubic-bezier(.4,0,.2,1)/* @kind other */;
+--dur-fast:120ms/* @kind other */;
+--dur-med:280ms/* @kind other */;
+--dur-slow:2400ms/* @kind other */;
+--dur-pulse:3200ms/* @kind other */;
+}
+@keyframes symbiote-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+@keyframes symbiote-scan{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+@keyframes symbiote-spin{from{transform:rotateY(0deg) rotateX(8deg)}to{transform:rotateY(360deg) rotateX(8deg)}}
+@keyframes symbiote-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes symbiote-glow-pulse{0%,100%{box-shadow:var(--glow-xs)}50%{box-shadow:var(--glow-md)}}

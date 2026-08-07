@@ -1,0 +1,104 @@
+/* Command Center kit scope.
+   The brief specifies a toxin-green symbiont palette. It is re-pointed here
+   rather than in tokens/colors.css so the rest of the design system keeps its
+   own accent.
+
+   Note: unregistered custom properties resolve their var() references at the
+   element where they are DECLARED, so redefining only the --blue-* primitives
+   would not reach --accent / --glow-* (both computed at :root). Every derived
+   token is therefore restated explicitly below. */
+.symbiote-hud {
+  /* primitives */
+  --blue-core: #00ff88;
+  --blue-bright: #1aff00;
+  --blue-dim: #04412a;
+  --blue-faint: rgba(0, 255, 136, 0.08);
+
+  /* signal */
+  --accent: #00ff88;
+  --accent-bright: #1aff00;
+  --accent-dim: #04412a;
+  --text-heading: #00ff88;
+  --state-ok: #00ff88;
+  --state-ok-glow: rgba(0, 255, 136, 0.35);
+
+  /* surfaces */
+  --grid-line: rgba(0, 255, 136, 0.05);
+  --glass-bg: rgba(0, 18, 10, 0.38);
+  --glass-bg-strong: rgba(0, 26, 15, 0.58);
+  --glass-border: rgba(0, 255, 136, 0.22);
+  --glass-border-dim: rgba(0, 255, 136, 0.1);
+  --surface-panel: rgba(0, 18, 10, 0.38);
+  --surface-panel-strong: rgba(0, 26, 15, 0.58);
+  --border-panel: rgba(0, 255, 136, 0.22);
+  --border-panel-dim: rgba(0, 255, 136, 0.1);
+
+  /* glow — restated because they bake --state-ok-glow at :root */
+  --glow-xs: 0 0 4px rgba(0, 255, 136, 0.35);
+  --glow-sm: 0 0 8px rgba(0, 255, 136, 0.35), 0 0 2px rgba(0, 255, 136, 0.6);
+  --glow-md: 0 0 16px rgba(0, 255, 136, 0.35), 0 0 4px rgba(0, 255, 136, 0.5);
+  --glow-lg: 0 0 32px rgba(0, 255, 136, 0.35), 0 0 8px rgba(0, 255, 136, 0.4);
+
+  /* kit-local shorthands */
+  --hud-hairline: rgba(0, 255, 136, 0.14);
+  --hud-wash: rgba(0, 255, 136, 0.04);
+}
+
+/* Alternate accent, selectable in Settings → Appearance. Same restate-every-
+   derived-token rule as above. */
+.symbiote-hud.theme-signal {
+  --blue-core: #00d9ff;
+  --blue-bright: #2979ff;
+  --blue-dim: #0a2f4d;
+  --blue-faint: rgba(0, 217, 255, 0.08);
+
+  --accent: #00d9ff;
+  --accent-bright: #2979ff;
+  --accent-dim: #0a2f4d;
+  --text-heading: #00d9ff;
+  --state-ok: #00d9ff;
+  --state-ok-glow: rgba(0, 217, 255, 0.35);
+
+  --grid-line: rgba(0, 217, 255, 0.05);
+  --glass-bg: rgba(0, 12, 20, 0.38);
+  --glass-bg-strong: rgba(0, 18, 30, 0.58);
+  --glass-border: rgba(0, 217, 255, 0.22);
+  --glass-border-dim: rgba(0, 217, 255, 0.1);
+  --surface-panel: rgba(0, 12, 20, 0.38);
+  --surface-panel-strong: rgba(0, 18, 30, 0.58);
+  --border-panel: rgba(0, 217, 255, 0.22);
+  --border-panel-dim: rgba(0, 217, 255, 0.1);
+
+  --glow-xs: 0 0 4px rgba(0, 217, 255, 0.35);
+  --glow-sm: 0 0 8px rgba(0, 217, 255, 0.35), 0 0 2px rgba(0, 217, 255, 0.6);
+  --glow-md: 0 0 16px rgba(0, 217, 255, 0.35), 0 0 4px rgba(0, 217, 255, 0.5);
+  --glow-lg: 0 0 32px rgba(0, 217, 255, 0.35), 0 0 8px rgba(0, 217, 255, 0.4);
+
+  --hud-hairline: rgba(0, 217, 255, 0.14);
+  --hud-wash: rgba(0, 217, 255, 0.04);
+}
+
+/* The stage is a fixed 1080px canvas, so the shared scanline keyframe
+   (which travels 100vh) would drift. This one is stage-relative. */
+@keyframes hud-scanline {
+  0%   { transform: translateY(-180px); }
+  100% { transform: translateY(1080px); }
+}
+@keyframes hud-sweep {
+  0%   { transform: translateY(-100%); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+@keyframes hud-filament {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -120; }
+}
+@keyframes hud-breathe {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%      { opacity: 0.7;  transform: scale(1.06); }
+}
+@keyframes hud-ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}

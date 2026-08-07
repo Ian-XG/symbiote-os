@@ -1,0 +1,104 @@
+#!/bin/sh
+# Runs the shell and makes any failure visible.
+#
+# labwc starts this as its session client. When the client exits, labwc simply
+# carries on with an empty desktop — a grey screen with a cursor and no clue
+# what happened. On a live ISO that is unrecoverable, so this reports instead.
+#
+# There are two ways to fail and BOTH need covering:
+#   - the shell exits non-zero        -> show the log
+#   - the shell hangs and never draws -> show the log anyway, after a timeout
+# The first version only handled the exit case, so a hung Electron still left a
+# blank screen with nothing to read. That is what the watchdog is for.
+
+LOG=/tmp/symbiote-shell.log
+READY=/tmp/symbiote-shell-ready
+WATCHDOG_SECONDS=45
+
+# Two shells ship in the image while the Qt one is being proven on real
+# hardware. Qt is the default: it keeps the hologram's geometry on the GPU
+# instead of re-rasterising it, which the process panel measured costing a full
+# core under Electron. `symbiote.shell=electron` on the kernel command line
+# falls back, so a machine the new shell cannot start is still usable.
+QT_BIN=/opt/symbiote/shell-qt/symbiote-shell-qt
+ELECTRON_BIN=/opt/symbiote/shell/symbiote-shell
+
+case "$(cat /proc/cmdline 2>/dev/null)" in
+	*symbiote.shell=electron*) SHELL_BIN="$ELECTRON_BIN" ;;
+	*symbiote.shell=qt*)       SHELL_BIN="$QT_BIN" ;;
+	*) [ -x "$QT_BIN" ] && SHELL_BIN="$QT_BIN" || SHELL_BIN="$ELECTRON_BIN" ;;
+esac
+echo "symbiote: using shell $SHELL_BIN"
+
+# Everything a person needs to tell one failure mode from another, printed into
+# a terminal because at this point there is nowhere else to look.
+diagnostics() {
+	echo '--- graphics ---'
+	for c in /sys/class/drm/card*-*; do
+		[ -f "$c/status" ] && echo "  $(basename "$c"): $(cat "$c/status")"
+	done
+	for d in /sys/class/drm/card*/device/driver; do
+		[ -e "$d" ] && echo "  driver: $(basename "$(readlink -f "$d")")"
+	done
+	echo "  WLR_RENDERER=${WLR_RENDERER:-default}"
+	echo "  WLR_DRM_DEVICES=${WLR_DRM_DEVICES:-auto}"
+	echo "  SYMBIOTE_SOFTWARE_GL=${SYMBIOTE_SOFTWARE_GL:-0}"
+	echo
+	echo 'Boot options (press TAB at the boot menu and append):'
+	echo '  symbiote.gl=sw        force software rendering'
+	echo '  symbiote.drm=card1    use a specific GPU'
+}
+
+open_report() {
+	title="$1"
+	follow="$2"   # "follow" to keep tailing, empty for a one-shot dump
+	{
+		echo '=================================================='
+		echo " $title"
+		echo '=================================================='
+		echo
+		diagnostics
+		echo
+		echo "--- $LOG ---"
+	} > /tmp/symbiote-report.txt
+	if [ "$follow" = "follow" ]; then
+		foot -T "Symbiote Shell" sh -c \
+			"cat /tmp/symbiote-report.txt; tail -f $LOG 2>/dev/null" &
+	else
+		foot -T "Symbiote Shell" sh -c \
+			"cat /tmp/symbiote-report.txt; tail -40 $LOG 2>/dev/null; echo; exec \${SHELL:-sh}" &
+	fi
+}
+
+if [ ! -x "$SHELL_BIN" ]; then
+	open_report "SHELL MISSING: $SHELL_BIN not present or not executable"
+	wait
+	exit 1
+fi
+
+rm -f "$READY"
+"$SHELL_BIN" >"$LOG" 2>&1 &
+shell_pid=$!
+
+# Nothing drawn after this long? Show the log next to it.
+#
+# The condition is "the shell never signalled that it painted a frame", NOT
+# "the process is still running" — that was the first version, and since a
+# healthy shell runs forever it reported failure every single time it worked.
+(
+	sleep "$WATCHDOG_SECONDS"
+	if kill -0 "$shell_pid" 2>/dev/null && [ ! -f "$READY" ]; then
+		open_report "SHELL RUNNING BUT NOTHING DRAWN AFTER ${WATCHDOG_SECONDS}s" follow
+	fi
+) &
+watchdog_pid=$!
+
+wait "$shell_pid"
+rc=$?
+kill "$watchdog_pid" 2>/dev/null
+
+# Exit 0 means the user quit it deliberately; anything else is a crash.
+[ "$rc" -eq 0 ] && exit 0
+
+open_report "SYMBIOTE SHELL FAILED TO START  (exit $rc)"
+wait

@@ -1,0 +1,86 @@
+<?xml version="1.0"?>
+<!--
+  labwc configuration for Symbiote OS.
+
+  The shell is not an ordinary window: it is the desktop. The rule below keeps
+  it fullscreen, undecorated and permanently below everything else, so launched
+  apps float on top of the HUD instead of being hidden behind it or covering
+  the taskbar's own chrome.
+-->
+<labwc_config>
+
+  <core>
+    <gap>0</gap>
+    <adaptiveSync>no</adaptiveSync>
+  </core>
+
+  <theme>
+    <!-- Titlebars are the one piece of chrome we do not draw ourselves, so
+         they are made to match the HUD rather than fight it.
+         Palette lives in /usr/share/themes/Symbiote/labwc/themerc -->
+    <name>Symbiote</name>
+    <cornerRadius>0</cornerRadius>
+    <font place="ActiveWindow">
+      <name>JetBrains Mono</name>
+      <size>9</size>
+    </font>
+    <font place="InactiveWindow">
+      <name>JetBrains Mono</name>
+      <size>9</size>
+    </font>
+  </theme>
+
+  <windowRules>
+    <!-- The shell itself. electron-builder sets app_id from productName. -->
+    <windowRule identifier="symbiote-shell">
+      <action name="ToggleAlwaysOnBottom"/>
+      <skipTaskbar>yes</skipTaskbar>
+      <skipWindowSwitcher>yes</skipWindowSwitcher>
+      <serverDecoration>no</serverDecoration>
+      <fixedPosition>yes</fixedPosition>
+    </windowRule>
+    <windowRule identifier="Symbiote Shell">
+      <action name="ToggleAlwaysOnBottom"/>
+      <skipTaskbar>yes</skipTaskbar>
+      <skipWindowSwitcher>yes</skipWindowSwitcher>
+      <serverDecoration>no</serverDecoration>
+      <fixedPosition>yes</fixedPosition>
+    </windowRule>
+
+    <!-- Everything else opens centred and decorated, at a size that leaves the
+         taskbar and the status rail visible. -->
+    <windowRule identifier="*">
+      <serverDecoration>yes</serverDecoration>
+    </windowRule>
+  </windowRules>
+
+  <keyboard>
+    <!-- Load labwc's own bindings first, then add ours. Without <default/> the
+         shipped set is replaced rather than extended, and everything the
+         compositor normally handles silently stops working. -->
+    <default />
+    <keybind key="A-Tab">
+      <action name="NextWindow"/>
+    </keybind>
+    <keybind key="A-F4">
+      <action name="Close"/>
+    </keybind>
+    <keybind key="W-Return">
+      <action name="Execute"><command>foot</command></action>
+    </keybind>
+    <!-- No VT-switch binding here. labwc has no "VTSwitch" action — that was
+         invented, and it made labwc log "Invalid action: VTSwitch" on every
+         start. Ctrl+Alt+F2 is handled by the kernel/seat layer anyway, so the
+         binding was never needed. -->
+  </keyboard>
+
+  <mouse>
+    <!-- MUST be present. Defining any <mouse> content without <default/>
+         replaces labwc's entire mouse configuration, which is what drives the
+         titlebar buttons: minimise, maximise and close are all mousebinds on
+         the Iconify/Maximize/Close contexts. Overriding them with a single
+         Root binding left the buttons drawn but dead to the click. -->
+    <default />
+  </mouse>
+
+</labwc_config>

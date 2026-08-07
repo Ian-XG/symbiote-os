@@ -1,0 +1,18 @@
+#!/bin/sh
+# Security defaults that need a service enabled rather than a file dropped in.
+set -e
+
+echo "I: enabling the firewall"
+systemctl enable nftables.service
+
+# AppArmor confines applications to what they are supposed to touch. Debian
+# ships the profiles; nothing enables them on a live image by default.
+if [ -x /usr/sbin/apparmor_parser ]; then
+	echo "I: enabling AppArmor"
+	systemctl enable apparmor.service || true
+fi
+
+# No remote entry points. Neither should be installed, but an image that calls
+# itself secure should not depend on that staying true.
+systemctl disable ssh.service 2>/dev/null || true
+systemctl mask ssh.service 2>/dev/null || true
