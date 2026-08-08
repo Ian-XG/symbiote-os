@@ -12,10 +12,22 @@ nautilus
 gnome-text-editor
 eog
 
+# Opening the things people actually have. Without these a double-click on a
+# video, a PDF or an archive did nothing at all — the file manager had no
+# handler to hand them to.
+#
+# mpv rather than a full media application: it is small, plays everything, and
+# its on-screen controls can be recoloured. A GNOME video player brings its own
+# chrome and ignores the palette.
+mpv
+papers
+file-roller
+gnome-calculator
+
 # Removable storage. Nautilus lists a drive it cannot mount without these:
-# udisks2 does the mounting, gvfs is how Nautilus asks it, and the two
-# filesystem drivers are what a disk formatted on a Mac or a PC actually uses.
-# Without them an external SSD appears and refuses to open, or never appears.
+# udisks2 does the mounting, gvfs is how Nautilus asks it, and the filesystem
+# drivers are what a disk formatted on a Mac or a PC actually uses. Without
+# them an external SSD appears and refuses to open, or never appears.
 udisks2
 gvfs
 gvfs-backends
@@ -27,3 +39,12 @@ dosfstools
 # HFS+ at least is. hfsutils and hfsprogs are gone from trixie — checked
 # against the archive rather than assumed, after hfsutils failed the build.
 hfsplus
+
+# The installer. Calamares partitions disks, sets up LUKS and writes a
+# bootloader — work where a bug destroys somebody's data. It is the standard
+# tool for exactly this and is far better tested than anything written here
+# would be, so this ships it rather than reinventing it.
+calamares
+calamares-settings-debian
+# Calamares is Qt Widgets with a QML slideshow.
+qml6-module-qtquick-controls

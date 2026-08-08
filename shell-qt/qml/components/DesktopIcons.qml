@@ -18,6 +18,7 @@ Column {
         return out
     }
     property var openIds: []
+    property var startingIds: []
     property var selectedIds: []
     signal activated(string id)
     signal contextRequested(string id, real sx, real sy)
@@ -49,6 +50,7 @@ Column {
             height: 88
 
             readonly property bool isOpen: root.openIds.indexOf(modelData.id) !== -1
+            readonly property bool isStarting: root.startingIds.indexOf(modelData.id) !== -1
             readonly property bool selected: root.isSelected(modelData.id)
             readonly property bool lit: hover.hovered || isOpen || selected
 
@@ -86,12 +88,29 @@ Column {
                     stroke: cell.lit ? Theme.accent : Theme.textBody
                 }
 
-                // open indicator
+                /* Open is a steady dot; starting is the same dot pulsing. One
+                   mark, two states — the icon does not change shape under the
+                   cursor mid-click. */
                 Rectangle {
-                    visible: cell.isOpen
+                    visible: cell.isOpen || cell.isStarting
                     width: 4; height: 4
                     color: Theme.accent
                     anchors { top: parent.top; right: parent.right; margins: 5 }
+                    SequentialAnimation on opacity {
+                        running: cell.isStarting
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 0.2; duration: 520 }
+                        NumberAnimation { to: 1.0; duration: 520 }
+                    }
+                }
+
+                Text {
+                    visible: cell.isStarting
+                    anchors { bottom: parent.bottom; right: parent.right; margins: 4 }
+                    text: "···"
+                    color: Theme.accent
+                    font.family: Theme.mono
+                    font.pixelSize: 8
                 }
 
                 Text {

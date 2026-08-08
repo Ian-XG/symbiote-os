@@ -1,0 +1,31 @@
+#!/bin/sh
+# Point Calamares at the Symbiote branding and name it for this system.
+#
+# The branding line is edited in place rather than shipping a whole
+# settings.conf: that file carries the module sequence, and a private copy
+# would silently drift from the package the next time Debian changes it.
+set -e
+
+SETTINGS=/etc/calamares/settings.conf
+if [ ! -f "$SETTINGS" ]; then
+	echo "W: calamares settings.conf missing — installer will use its defaults" >&2
+	exit 0
+fi
+
+if grep -qE '^branding:' "$SETTINGS"; then
+	sed -i 's|^branding:.*|branding: symbiote|' "$SETTINGS"
+	echo "I: calamares branding set to symbiote"
+else
+	echo "W: no branding: line in $SETTINGS — leaving it alone" >&2
+fi
+
+# The shipped entry says "Install Debian", which is true underneath and
+# confusing on screen.
+DESKTOP=/usr/share/applications/calamares-install-debian.desktop
+if [ -f "$DESKTOP" ]; then
+	sed -i 's|^Name=.*|Name=Install Symbiote OS|' "$DESKTOP"
+	sed -i 's|^Comment=.*|Comment=Install this system to a disk|' "$DESKTOP"
+fi
+
+# A live session should not open the installer over the desktop on every boot.
+rm -f /etc/xdg/autostart/calamares-desktop-icon.desktop

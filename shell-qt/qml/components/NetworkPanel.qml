@@ -139,7 +139,7 @@ Item {
 
                     TapHandler {
                         onTapped: {
-                            Network.lastError = ""
+                            Network.clearError()
                             root.passphrase = ""
                             root.selected = parent.isSel ? "" : modelData.ssid
                         }

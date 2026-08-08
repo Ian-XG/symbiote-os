@@ -1,5 +1,13 @@
 #include "ProcessMonitor.h"
 
+#include <QFile>
+#include <QTimer>
+#include <QCoreApplication>
+#include <signal.h>
+#include <string.h>
+#include <errno.h>
+#include <unistd.h>
+
 #include <QDir>
 #include <QFile>
 #include <algorithm>
@@ -77,4 +85,44 @@ void ProcessMonitor::sample()
     m_prevTicks = current;
     m_top = out;
     emit changed();
+}
+
+
+QString ProcessMonitor::terminate(int pid)
+{
+    if (pid <= 1)
+        return QStringLiteral("PID %1 is the kernel or init and cannot be killed").arg(pid);
+
+    if (pid == int(getpid()))
+        return QStringLiteral("that is the shell itself");
+
+    /* Killing the compositor takes the whole desktop with it, including every
+       window the operator has open. Naming the reason is more use than a
+       generic refusal. */
+    QFile comm(QStringLiteral("/proc/%1/comm").arg(pid));
+    QString name;
+    if (comm.open(QIODevice::ReadOnly | QIODevice::Text))
+        name = QString::fromUtf8(comm.readAll()).trimmed();
+
+    if (name == QLatin1String("labwc"))
+        return QStringLiteral("labwc is the compositor — killing it closes the desktop");
+    if (name == QLatin1String("greetd") || name == QLatin1String("systemd"))
+        return QStringLiteral("%1 runs the session and must not be killed").arg(name);
+
+    if (name.isEmpty())
+        return QStringLiteral("process %1 is already gone").arg(pid);
+
+    if (::kill(pid_t(pid), SIGTERM) != 0) {
+        return errno == EPERM
+            ? QStringLiteral("%1 belongs to another user").arg(name)
+            : QStringLiteral("could not signal %1: %2").arg(name, QString::fromLocal8Bit(strerror(errno)));
+    }
+
+    // If it has not gone in five seconds it is not going to.
+    QTimer::singleShot(5000, this, [pid] {
+        if (QFile::exists(QStringLiteral("/proc/%1").arg(pid)))
+            ::kill(pid_t(pid), SIGKILL);
+    });
+
+    return QString();
 }

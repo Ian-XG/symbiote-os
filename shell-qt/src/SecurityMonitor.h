@@ -33,6 +33,10 @@ private:
     QVariantMap encryption();
     QVariantMap updates();
     QVariantMap ports();
+    QVariantMap medium();
+    /* Errors the device had already logged when the shell started. Only what
+       accumulates after that means anything. */
+    qint64 m_mediumBaseline = -1;
 
     QVariantList m_rows;
     QTimer m_timer;

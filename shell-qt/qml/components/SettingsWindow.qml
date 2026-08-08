@@ -9,7 +9,9 @@ Item {
     signal closed()
 
     property string section: "APPEARANCE"
-    readonly property var sections: ["APPEARANCE", "NETWORK", "BLUETOOTH", "SYSTEM", "SECURITY", "ABOUT"]
+    readonly property var sections: ["APPEARANCE", "SOUND & DISPLAY", "NETWORK",
+                                     "BLUETOOTH", "KEYBOARD", "SHORTCUTS",
+                                     "SYSTEM", "SECURITY", "ABOUT"]
 
     /* Two layers. The panel tint alone is 58% alpha, which is right for a HUD
        card sitting on the desktop but not for a window you have to read: the
@@ -63,10 +65,21 @@ Item {
         }
     }
 
-    // ── tabs ───────────────────────────────────────────────────
-    Row {
+    /* ── tabs ───────────────────────────────────────────────────
+       Scrollable. A plain Row simply ran past the window edge, and the last
+       two sections could not be reached at all. */
+    Flickable {
         id: tabs
-        anchors { left: parent.left; leftMargin: 18; top: titleBar.bottom }
+        anchors { left: parent.left; leftMargin: 18; right: parent.right
+                  rightMargin: 18; top: titleBar.bottom }
+        height: 38
+        contentWidth: tabRow.width
+        flickableDirection: Flickable.HorizontalFlick
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+
+    Row {
+        id: tabRow
         spacing: 2
 
         Repeater {
@@ -106,6 +119,8 @@ Item {
                 }
             }
         }
+    }
+
     }
 
     Rectangle {
@@ -181,6 +196,189 @@ Item {
                 label: "Hologram rotation"
                 hint: "Stops only while a panel is covering it."
                 Toggle { on: Prefs.spin; onToggled: Prefs.spin = !Prefs.spin }
+            }
+            }
+        }
+
+        // SOUND & DISPLAY
+        Section {
+            shown: root.section === "SOUND & DISPLAY"
+            Column {
+            width: parent.width
+
+            SettingRow {
+                label: "Volume"
+                hint: Media.audioAvailable ? "Output level. The laptop's own volume keys change this too."
+                                           : "No audio device found."
+                Segmented {
+                    options: [{ v: "0", t: "MUTE" }, { v: "25", t: "25" },
+                              { v: "50", t: "50" }, { v: "75", t: "75" },
+                              { v: "100", t: "100" }]
+                    // The nearest preset, so the row shows where you actually are.
+                    current: !Media.audioAvailable ? ""
+                           : Media.muted ? "0"
+                           : String(Math.round(Media.volume / 25) * 25)
+                    onPicked: function (v) {
+                        if (v === "0") { if (!Media.muted) Media.toggleMute() }
+                        else { if (Media.muted) Media.toggleMute(); Media.setVolume(Number(v)) }
+                    }
+                }
+            }
+
+            SettingRow {
+                label: "Screen brightness"
+                hint: Media.backlightAvailable
+                      ? "Never goes fully dark — an unlit panel hides the control that undoes it."
+                      : "No backlight on this machine, or an external display."
+                Segmented {
+                    options: [{ v: "20", t: "20" }, { v: "40", t: "40" },
+                              { v: "60", t: "60" }, { v: "80", t: "80" },
+                              { v: "100", t: "100" }]
+                    current: !Media.backlightAvailable ? ""
+                           : String(Math.max(20, Math.round(Media.brightness / 20) * 20))
+                    onPicked: function (v) { Media.setBrightness(Number(v)) }
+                }
+            }
+            }
+        }
+
+        // KEYBOARD
+        Section {
+            shown: root.section === "KEYBOARD"
+            Column {
+            width: parent.width
+            spacing: 0
+
+            SettingRow {
+                label: "Layout"
+                hint: "Where the symbols are. On the wrong layout a Wi-Fi password fails "
+                    + "as though it were wrong, because the characters are masked."
+                Segmented {
+                    options: {
+                        var out = []
+                        for (var i = 0; i < Keyboard.layouts.length; i++)
+                            out.push({ v: Keyboard.layouts[i].code,
+                                       t: Keyboard.layouts[i].code.toUpperCase() })
+                        return out
+                    }
+                    current: Keyboard.pendingLayout
+                    onPicked: function (v) { Keyboard.setLayout(v) }
+                }
+            }
+
+            Text {
+                width: parent.width
+                topPadding: 10
+                text: {
+                    var name = ""
+                    for (var i = 0; i < Keyboard.layouts.length; i++)
+                        if (Keyboard.layouts[i].code === Keyboard.pendingLayout)
+                            name = Keyboard.layouts[i].name
+                    return "Selected: " + (name || Keyboard.pendingLayout)
+                }
+                color: Theme.textMuted
+                font.family: Theme.mono
+                font.pixelSize: Theme.size2xs
+            }
+
+            /* Stated rather than hidden. A wlroots compositor cannot change
+               its keymap while running, and a control that silently does
+               nothing until some later reboot is worse than one that says so. */
+            Rectangle {
+                width: parent.width
+                height: restartText.implicitHeight + 20
+                visible: Keyboard.restartNeeded
+                color: Theme.tint(0.06)
+                border.width: 1
+                border.color: Theme.accent
+                Text {
+                    id: restartText
+                    anchors { fill: parent; margins: 10 }
+                    text: "Saved, but not yet in effect. The compositor reads the layout once, "
+                        + "at start. Sign out and back in (Super+L → LOG OUT) to apply it."
+                    color: Theme.textBody
+                    font.family: Theme.mono
+                    font.pixelSize: Theme.size2xs
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.4
+                }
+            }
+            }
+        }
+
+        // SHORTCUTS
+        Section {
+            shown: root.section === "SHORTCUTS"
+            Column {
+            width: parent.width
+
+            Text {
+                width: parent.width
+                topPadding: 6
+                bottomPadding: 10
+                text: "Nothing in the interface announced these, so until now they only "
+                    + "existed if somebody told you."
+                color: Theme.textMuted
+                font.family: Theme.mono
+                font.pixelSize: Theme.size2xs
+                wrapMode: Text.WordWrap
+            }
+
+            Repeater {
+                /* Written out by hand, and it has to match Main.qml's Shortcut
+                   declarations — a reference that drifts from the bindings is
+                   worse than none. */
+                model: [
+                    { k: "Super",        v: "Applications" },
+                    { k: "Ctrl+Alt+T",   v: "Terminal" },
+                    { k: "Super+E",      v: "File manager" },
+                    { k: "Super+W",      v: "Wireless" },
+                    { k: "Super+I",      v: "Settings" },
+                    { k: "Super+L",      v: "Session and power" },
+                    { k: "Super+Escape", v: "Lock the screen" },
+                    { k: "Print",        v: "Screenshot" },
+                    { k: "Shift+Print",  v: "Screenshot of a region" },
+                    { k: "Escape",       v: "Close the top panel" },
+                    { k: "Super+Return", v: "Terminal (compositor)" },
+                    { k: "Alt+Tab",      v: "Switch window (compositor)" },
+                    { k: "Ctrl+Alt+F2",  v: "Text console, if the desktop will not start" }
+                ]
+
+                Item {
+                    required property var modelData
+                    width: parent.width
+                    height: 28
+
+                    Rectangle {
+                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                        width: keyLabel.width + 16
+                        height: 20
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Theme.line
+                        Text {
+                            id: keyLabel
+                            anchors.centerIn: parent
+                            text: parent.parent.modelData.k
+                            color: Theme.accent
+                            font.family: Theme.mono
+                            font.pixelSize: Theme.size2xs
+                        }
+                    }
+                    Text {
+                        anchors { left: parent.left; leftMargin: 150
+                                  verticalCenter: parent.verticalCenter }
+                        text: parent.modelData.v
+                        color: Theme.textBody
+                        font.family: Theme.mono
+                        font.pixelSize: Theme.sizeXs
+                    }
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        width: parent.width; height: 1
+                        color: Qt.rgba(1, 1, 1, 0.04)
+                    }
+                }
             }
             }
         }

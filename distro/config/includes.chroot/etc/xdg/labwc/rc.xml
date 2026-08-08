@@ -68,6 +68,43 @@
     <keybind key="W-Return">
       <action name="Execute"><command>foot</command></action>
     </keybind>
+    <!-- Lock and screenshots. Print is where every desktop puts the capture,
+         and Super+Escape locks without going through the session menu. -->
+    <keybind key="W-Escape">
+      <action name="Execute"><command>symbiote-lock</command></action>
+    </keybind>
+    <keybind key="Print">
+      <action name="Execute"><command>symbiote-shot full</command></action>
+    </keybind>
+    <keybind key="S-Print">
+      <action name="Execute"><command>symbiote-shot region</command></action>
+    </keybind>
+
+    <!-- Media keys. The compositor owns the keyboard, so these do nothing at
+         all unless it forwards them: pressing volume-up on the laptop was
+         silent because nobody was listening. wpctl and brightnessctl are the
+         same tools the shell's own controls use, so the tray reading and the
+         key agree. -->
+    <keybind key="XF86AudioRaiseVolume">
+      <action name="Execute"><command>wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+</command></action>
+    </keybind>
+    <keybind key="XF86AudioLowerVolume">
+      <action name="Execute"><command>wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-</command></action>
+    </keybind>
+    <keybind key="XF86AudioMute">
+      <action name="Execute"><command>wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle</command></action>
+    </keybind>
+    <keybind key="XF86AudioMicMute">
+      <action name="Execute"><command>wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle</command></action>
+    </keybind>
+    <keybind key="XF86MonBrightnessUp">
+      <action name="Execute"><command>brightnessctl set 5%+</command></action>
+    </keybind>
+    <keybind key="XF86MonBrightnessDown">
+      <!-- Never to zero: a dark panel hides the control that would undo it. -->
+      <action name="Execute"><command>brightnessctl set 5%- -n 5</command></action>
+    </keybind>
+
     <!-- No VT-switch binding here. labwc has no "VTSwitch" action — that was
          invented, and it made labwc log "Invalid action: VTSwitch" on every
          start. Ctrl+Alt+F2 is handled by the kernel/seat layer anyway, so the

@@ -20,12 +20,17 @@ class AppLauncher : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QStringList openIds READ openIds NOTIFY openChanged)
+    /* Launched but not yet on screen. Firefox takes about ten seconds to draw
+       its first window on this hardware; without this the interface looks
+       identical before and after the click, so people click again. */
+    Q_PROPERTY(QStringList startingIds READ startingIds NOTIFY openChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY errorChanged)
 
 public:
     explicit AppLauncher(QObject *parent = nullptr);
 
     QStringList openIds() const { return m_open.keys(); }
+    QStringList startingIds() const { return m_starting.values(); }
     QString lastError() const { return m_lastError; }
 
     Q_INVOKABLE void launch(const QString &id);
@@ -45,6 +50,13 @@ public:
     /** Launch a discovered entry by its Exec line. */
     Q_INVOKABLE void launchCommand(const QString &id, const QString &exec);
 
+
+    /* Errors are read-only to QML deliberately — nothing outside should be
+       able to invent one — but they do need clearing once shown, and
+       assigning to a read-only property fails silently at runtime. It had
+       been failing since the Wi-Fi panel first tried it. */
+    Q_INVOKABLE void clearError();
+
 signals:
     void openChanged();
     void errorChanged();
@@ -55,6 +67,7 @@ private:
     QHash<QString, QProcess *> m_open;
     QString m_lastError;
     QVariantList m_discovered;
+    QSet<QString> m_starting;
 
     void scanDesktopEntries();
 };

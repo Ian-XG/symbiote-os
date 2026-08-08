@@ -21,6 +21,17 @@ class PowerActions : public QObject
 public:
     using QObject::QObject;
 
+    /* Lock and capture are not systemctl verbs; they are the session's own
+       helpers, and they run detached so the shell is not their parent. */
+    Q_INVOKABLE void lockScreen()
+    {
+        QProcess::startDetached(QStringLiteral("symbiote-lock"), {});
+    }
+    Q_INVOKABLE void screenshot(const QString &mode)
+    {
+        QProcess::startDetached(QStringLiteral("symbiote-shot"), {mode});
+    }
+
     Q_INVOKABLE void powerOff() { run(QStringLiteral("poweroff")); }
     Q_INVOKABLE void restart()  { run(QStringLiteral("reboot")); }
     /* Ends the session; greetd starts a fresh one, which is the closest thing

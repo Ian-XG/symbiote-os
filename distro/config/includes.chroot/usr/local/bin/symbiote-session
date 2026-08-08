@@ -151,4 +151,6 @@ fi
 # labwc starts the wrapper, which reports any failure on screen rather than
 # leaving an empty desktop. The window rule in rc.xml pins the shell to the
 # bottom; apps launched later appear above it as real windows.
-exec labwc -s /usr/local/bin/symbiote-shell-run
+# One path, no shell syntax: labwc's -s splits its argument on whitespace and
+# execs it directly. See symbiote-startup.
+exec labwc -s /usr/local/bin/symbiote-startup

@@ -22,6 +22,7 @@ Window {
     property bool launcherOpen: false
     property bool wifiOpen: false
     property bool powerOpen: false
+    property bool mediaOpen: false
     property string clockText: ""
 
     property string menuTargetId: ""
@@ -40,13 +41,32 @@ Window {
             { label: Theme.blue ? "ACCENT: TOXIN GREEN" : "ACCENT: SIGNAL BLUE", action: "accent" },
             { label: "SETTINGS", action: "settings" },
             { separator: true },
+            { label: "SCREENSHOT", action: "shot" },
+            { label: "SCREENSHOT — REGION", action: "shotregion" },
+            { label: "LOCK SCREEN", action: "lock" },
             { label: "SESSION / POWER", action: "power" }
         ]
         desktopMenu.popup(gx, gy)
     }
 
+    property int menuTargetPid: 0
+    property string menuTargetName: ""
+
+    function openProcessMenu(pid, name, gx, gy) {
+        desktopMenu.dismiss()
+        win.menuTargetPid = pid
+        win.menuTargetName = name
+        iconMenu.entries = [
+            { label: name + "  ·  PID " + pid, enabled: false },
+            { separator: true },
+            { label: "END PROCESS", action: "kill", danger: true }
+        ]
+        iconMenu.popup(gx, gy)
+    }
+
     function openIconMenu(id, gx, gy) {
         desktopMenu.dismiss()
+        win.menuTargetPid = 0
         win.menuTargetId = id
         var onDesktop = Prefs.desktopIds.indexOf(id) !== -1
         var onTaskbar = Prefs.taskbarIds.indexOf(id) !== -1
@@ -83,6 +103,50 @@ Window {
             ctxPreview.start()
         }
     }
+
+    /* Keyboard.
+     *
+     * The shell had exactly one key binding — Escape, inside the launcher's
+     * search box — so every panel could only be dismissed with the mouse, and
+     * nothing could be opened without one. These are the bindings people
+     * already have in their fingers from other desktops.
+     */
+    function closeTopmost() {
+        // Innermost first, so Escape peels one layer at a time rather than
+        // clearing the screen in one press.
+        if (desktopMenu.visible || iconMenu.visible) {
+            desktopMenu.dismiss(); iconMenu.dismiss()
+        } else if (powerOpen) {
+            powerOpen = false
+        } else if (mediaOpen) {
+            mediaOpen = false
+        } else if (wifiOpen) {
+            wifiOpen = false
+        } else if (launcherOpen) {
+            launcherOpen = false
+        } else if (settingsOpen) {
+            settingsOpen = false
+        } else {
+            icons.selectedIds = []
+        }
+    }
+
+    Shortcut { sequences: ["Escape"]; onActivated: win.closeTopmost() }
+
+    // Super on its own is what most desktops use for "show me everything".
+    Shortcut { sequences: ["Meta", "Meta+Space"]; onActivated: win.launcherOpen = !win.launcherOpen }
+    Shortcut { sequences: ["Ctrl+Alt+T"]; onActivated: Apps.launch("terminal") }
+    Shortcut { sequences: ["Meta+E"]; onActivated: Apps.launch("files") }
+    Shortcut { sequences: ["Meta+I"]; onActivated: win.settingsOpen = true }
+    Shortcut { sequences: ["Meta+L"]; onActivated: win.powerOpen = true }
+    // The tray's Wi-Fi menu, without hunting for a 16px icon.
+    Shortcut { sequences: ["Meta+W"]; onActivated: win.wifiOpen = !win.wifiOpen }
+    /* Lock and capture are also bound in the compositor, so they work even
+       when the shell is busy or restarting. These are the same actions from
+       inside it. */
+    Shortcut { sequences: ["Meta+Escape"]; onActivated: PowerActions.lockScreen() }
+    Shortcut { sequences: ["Print"]; onActivated: PowerActions.screenshot("full") }
+    Shortcut { sequences: ["Shift+Print"]; onActivated: PowerActions.screenshot("region") }
 
     // ── wallpaper ──────────────────────────────────────────────
     Canvas {
@@ -164,6 +228,7 @@ Window {
         z: 2
         width: win.iconColWidth
         openIds: Apps.openIds
+        startingIds: Apps.startingIds
         onContextRequested: function (id, sx, sy) { win.openIconMenu(id, sx, sy) }
         onActivated: function (id) {
             if (id === "settings")
@@ -256,6 +321,16 @@ Window {
            laptop running from a USB stick that meant it never moved once, and
            the only clue was the word PAUSED in 8px type. Saving a little CPU is
            not worth the centrepiece looking broken. */
+        // Fed from the same readings the rail shows, so the two cannot disagree.
+        load: (System.cpu.usage || 0) / 100
+        memory: (System.memory.usage || 0) / 100
+        traffic: netTrace.series.length ? netTrace.series[netTrace.series.length - 1] : 0
+        alert: {
+            for (var i = 0; i < Security.rows.length; i++)
+                if (Security.rows[i].state === "critical") return true
+            return false
+        }
+
         paused: !Prefs.spin || win.settingsOpen || win.launcherOpen
     }
 
@@ -447,6 +522,9 @@ Window {
                 id: procList
                 anchors.fill: parent
                 rows: Processes.top
+                onContextRequested: function (pid, name, sx, sy) {
+                    win.openProcessMenu(pid, name, sx, sy)
+                }
             }
         }
     }
@@ -483,6 +561,14 @@ Window {
         onDismissed: win.wifiOpen = false
     }
 
+    MediaPopup {
+        anchors.fill: parent
+        bottomInset: taskbar.height
+        visible: win.mediaOpen
+        z: 61
+        onDismissed: win.mediaOpen = false
+    }
+
     PowerMenu {
         anchors.fill: parent
         bottomInset: taskbar.height
@@ -507,6 +593,9 @@ Window {
             case "accent":    Theme.accentMode = Theme.blue ? "toxin" : "signal"; break
             case "settings":  win.settingsOpen = true; break
             case "power":     win.powerOpen = true; break
+            case "shot":       PowerActions.screenshot("full"); break
+            case "shotregion": PowerActions.screenshot("region"); break
+            case "lock":       PowerActions.lockScreen(); break
             }
         }
     }
@@ -516,6 +605,15 @@ Window {
         anchors.fill: parent
         z: 71
         onPicked: function (action) {
+            if (action === "kill") {
+                var why = Processes.terminate(win.menuTargetPid)
+                // Refusals and failures both come back as text; say it rather
+                // than leaving the row sitting there unchanged.
+                win.notify(why === ""
+                           ? "Asked " + win.menuTargetName + " to quit"
+                           : why, why !== "")
+                return
+            }
             var id = win.menuTargetId
             if (!id) return
             switch (action) {
@@ -535,33 +633,68 @@ Window {
         id: settingsPanel
         visible: win.settingsOpen
         anchors.centerIn: parent
-        width: Math.min(780 * win.s, win.width - 80)
+        // Nine sections need more room than six did.
+        width: Math.min(980 * win.s, win.width - 80)
         height: Math.min(560 * win.s, win.height - 160)
         onClosed: win.settingsOpen = false
     }
 
-    // ── launch errors ──────────────────────────────────────────
-    Rectangle {
-        visible: Apps.lastError !== ""
-        anchors { horizontalCenter: parent.horizontalCenter; bottom: taskbar.top; bottomMargin: 16 }
-        width: errLabel.width + 36
-        height: 38
-        color: Qt.rgba(0.08, 0, 0.02, 0.92)
-        border.width: 1
-        border.color: Theme.alert
-        Text {
-            id: errLabel
-            anchors.centerIn: parent
-            text: Apps.lastError
-            color: Theme.alert
-            font.family: Theme.mono
-            font.pixelSize: Theme.sizeXs
+    // ── notifications ──────────────────────────────────────────
+    Notifications {
+        id: toasts
+        anchors.fill: parent
+        bottomInset: taskbar.height
+        z: 80
+    }
+
+    function notify(text, isError) { toasts.push(text, isError === true) }
+
+    /* Everything that used to happen silently now says so. A launch that fails
+       is one of these, not the only one. */
+    Connections {
+        target: Apps
+        function onErrorChanged() {
+            if (Apps.lastError) {
+                win.notify(Apps.lastError, true)
+                Apps.clearError()
+            }
         }
-        // A failed launch that says nothing is what made the icons feel dead.
-        Timer {
-            interval: 6000
-            running: Apps.lastError !== ""
-            onTriggered: Apps.lastError = ""
+    }
+
+    Connections {
+        target: Network
+        property string wasOn: ""
+        function onChanged() {
+            var now = ""
+            for (var i = 0; i < Network.networks.length; i++)
+                if (Network.networks[i].connected) now = Network.networks[i].ssid
+            if (now !== wasOn) {
+                if (now) win.notify("Connected to " + now)
+                else if (wasOn) win.notify("Disconnected from " + wasOn)
+                wasOn = now
+            }
+            if (Network.lastError) {
+                win.notify(Network.lastError, true)
+                Network.clearError()
+            }
+        }
+    }
+
+    Connections {
+        target: Bluetooth
+        property int wasCount: -1
+        function onChanged() {
+            var n = 0
+            for (var i = 0; i < Bluetooth.devices.length; i++)
+                if (Bluetooth.devices[i].connected) n++
+            if (wasCount >= 0 && n !== wasCount)
+                win.notify(n > wasCount ? "Bluetooth device connected"
+                                        : "Bluetooth device disconnected")
+            wasCount = n
+            if (Bluetooth.lastError) {
+                win.notify(Bluetooth.lastError, true)
+                Bluetooth.clearError()
+            }
         }
     }
 
@@ -570,6 +703,7 @@ Window {
         id: taskbar
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
         openIds: Apps.openIds
+        startingIds: Apps.startingIds
         clock: win.clockText
         date: win.dateText
         vpnUp: {
@@ -594,6 +728,8 @@ Window {
         onWifiRequested: win.wifiOpen = !win.wifiOpen
         onPowerRequested: win.powerOpen = !win.powerOpen
         powerOpen: win.powerOpen
+        onMediaRequested: win.mediaOpen = !win.mediaOpen
+        mediaOpen: win.mediaOpen
         wifiOpen: win.wifiOpen
         wifiAvailable: Network.available
         wifiConnected: {

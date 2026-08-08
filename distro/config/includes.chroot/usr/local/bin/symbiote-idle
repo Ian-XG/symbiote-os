@@ -1,0 +1,33 @@
+#!/bin/sh
+# What happens when the machine is left alone.
+#
+# Nothing did, before this: the screen stayed lit indefinitely and never
+# locked. On a laptop that is a flat battery and an unlocked desktop on
+# somebody else's table.
+#
+# The timings are deliberately not aggressive. An interface that locks while
+# you are reading it teaches people to disable the lock.
+# Dimming is only offered when the backlight is actually writable. On a
+# machine with no panel of its own — a VM, or an external display — every
+# timeout otherwise logged "Can't modify brightness: Permission denied" and
+# dimmed nothing.
+DIM=""
+for b in /sys/class/backlight/*/brightness; do
+	[ -w "$b" ] && DIM=yes && break
+done
+
+if [ -n "$DIM" ]; then
+	exec swayidle -w \
+		timeout 300  'brightnessctl -s set 10%' \
+		     resume  'brightnessctl -r' \
+		timeout 600  'symbiote-lock' \
+		timeout 900  'wlopm --off "*"' \
+		     resume  'wlopm --on "*"' \
+		before-sleep 'symbiote-lock'
+fi
+
+exec swayidle -w \
+	timeout 600  'symbiote-lock' \
+	timeout 900  'wlopm --off "*"' \
+	     resume  'wlopm --on "*"' \
+	before-sleep 'symbiote-lock'

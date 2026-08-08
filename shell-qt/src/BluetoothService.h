@@ -70,6 +70,13 @@ public:
     /** Forget: BlueZ drops the device and its keys from the adapter. */
     Q_INVOKABLE void forget(const QString &path);
 
+
+    /* Errors are read-only to QML deliberately — nothing outside should be
+       able to invent one — but they do need clearing once shown, and
+       assigning to a read-only property fails silently at runtime. It had
+       been failing since the Wi-Fi panel first tried it. */
+    Q_INVOKABLE void clearError();
+
 signals:
     void changed();
     void busyChanged();

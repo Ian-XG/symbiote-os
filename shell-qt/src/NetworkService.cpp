@@ -284,3 +284,11 @@ void NetworkService::setEnabled(bool on)
                QVariant::fromValue(QDBusVariant(on)));
     QTimer::singleShot(800, this, &NetworkService::refresh);
 }
+
+void NetworkService::clearError()
+{
+    if (m_lastError.isEmpty())
+        return;
+    m_lastError.clear();
+    emit changed();
+}

@@ -7,6 +7,13 @@
 #include <QTextStream>
 #include <QRegularExpression>
 #include <QTimer>
+#include <QSet>
+
+/* How long an application may take to put something on screen before the shell
+   stops claiming it is still starting. Generous on purpose: reporting
+   "started" while the user still sees nothing is the failure this exists to
+   prevent, and an indicator that lingers is cheaper than one that lies. */
+static constexpr int STARTING_GRACE_MS = 12000;
 
 AppLauncher::AppLauncher(QObject *parent) : QObject(parent)
 {
@@ -14,6 +21,9 @@ AppLauncher::AppLauncher(QObject *parent) : QObject(parent)
         // Built into the shell: no binary, so nothing to look for on PATH.
         {"settings", {"", {}}},
         {"files",    {"nautilus", {"--new-window"}}},
+        /* Calamares needs root and asks polkit for it itself; the wrapper is
+           what the Debian package installs for exactly that. */
+        {"install",  {"calamares-install-debian", {}}},
         {"terminal", {"foot", {}}},
         {"browser",  {"firefox", {}}},
         {"trash",    {"nautilus", {"trash:///"}}},
@@ -256,14 +266,23 @@ void AppLauncher::launchCommand(const QString &id, const QString &exec)
     connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
             [this, id, p](int, QProcess::ExitStatus) {
         m_open.remove(id);
+        m_starting.remove(id);
         p->deleteLater();
         emit openChanged();
     });
 
     p->start(parts.first(), parts.mid(1));
     m_open.insert(id, p);
+
+    m_starting.insert(id);
+    QTimer::singleShot(STARTING_GRACE_MS, this, [this, id] {
+        if (m_starting.remove(id))
+            emit openChanged();
+    });
     emit openChanged();
 }
+
+
 
 bool AppLauncher::isInstalled(const QString &id) const
 {
@@ -300,8 +319,20 @@ void AppLauncher::launch(const QString &id)
     p->setProcessChannelMode(QProcess::SeparateChannels);
 
     connect(p, &QProcess::errorOccurred, this, [this, id, p](QProcess::ProcessError) {
-        m_lastError = QStringLiteral("%1: %2").arg(id, p->errorString());
+        /* "execve: Input/output error" means the kernel could not read the
+           program off the disk. On a live image that is the medium failing,
+           not the application — the desktop keeps running because it is
+           already in memory, and only new launches die. Saying so is the
+           difference between a diagnosis and a riddle. */
+        const QString why = p->errorString();
+        m_lastError = why.contains(QLatin1String("Input/output error"))
+            ? QStringLiteral("%1 could not be read from the boot medium. "
+                             "The USB stick is failing or was flashed "
+                             "incompletely — reflash it, ideally on another "
+                             "stick.").arg(id)
+            : QStringLiteral("%1: %2").arg(id, why);
         m_open.remove(id);
+        m_starting.remove(id);
         emit errorChanged();
         emit openChanged();
     });
@@ -336,6 +367,7 @@ void AppLauncher::launch(const QString &id)
             }
         }
         m_open.remove(id);
+        m_starting.remove(id);
         p->deleteLater();
         emit openChanged();
     });
@@ -343,6 +375,12 @@ void AppLauncher::launch(const QString &id)
     p->setProperty("startedAt", QDateTime::currentMSecsSinceEpoch());
     p->start(e.cmd, e.args);
     m_open.insert(id, p);
+
+    m_starting.insert(id);
+    QTimer::singleShot(STARTING_GRACE_MS, this, [this, id] {
+        if (m_starting.remove(id))
+            emit openChanged();
+    });
     emit openChanged();
 }
 
@@ -356,4 +394,12 @@ void AppLauncher::close(const QString &id)
         if (p->state() != QProcess::NotRunning)
             p->kill();
     });
+}
+
+void AppLauncher::clearError()
+{
+    if (m_lastError.isEmpty())
+        return;
+    m_lastError.clear();
+    emit errorChanged();
 }

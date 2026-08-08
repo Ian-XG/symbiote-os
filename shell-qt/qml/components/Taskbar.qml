@@ -8,6 +8,7 @@ Item {
     height: 72
 
     property var openIds: []
+    property var startingIds: []
     property string clock: ""
     property string date: ""
     property bool vpnUp: false
@@ -22,6 +23,9 @@ Item {
     signal contextRequested(string id, real sx, real sy)
     signal wifiRequested()
     signal powerRequested()
+    signal mediaRequested()
+
+    property bool mediaOpen: false
 
     property bool powerOpen: false
 
@@ -67,35 +71,30 @@ Item {
                           ? Theme.accent : Theme.tint(0.10)
         }
 
-        /* The nine-square app grid, the convention everyone already reads as
-           "all applications". The diamond and the word MENU said less in more
-           room, and the word was the only text on the bar. */
-        Grid {
+        /* The mass itself. This corner is where a system puts its mark, and
+           the shell had a generic app-grid there — correct as a convention,
+           anonymous as an identity. Everything else in the interface stays
+           drawn in line art; this is the one bitmap, because it is the
+           product's own object and not an idea to redraw. */
+        Image {
             id: menuRow
             anchors.centerIn: parent
-            rows: 3
-            columns: 3
-            spacing: 4
-
-            Repeater {
-                model: 9
-                Rectangle {
-                    width: 4
-                    height: 4
-                    color: (menuHover.hovered || root.launcherOpen)
-                           ? Theme.accent : Theme.textBody
-                    /* The centre square is always lit: it keeps the grid from
-                       reading as a flat dot pattern and gives the button a
-                       focal point at 4px a side. */
-                    opacity: index === 4 ? 1 : 0.78
-                    Behavior on color { ColorAnimation { duration: Theme.durFast } }
-                }
-            }
+            width: 26; height: 26
+            source: "qrc:/assets/symbiote-64.png"
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            sourceSize.width: 64
+            sourceSize.height: 64
+            // Dimmed until wanted, so it sits in the bar rather than shouting
+            // from it.
+            opacity: (menuHover.hovered || root.launcherOpen) ? 1.0 : 0.82
+            Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
         }
     }
 
     // ── pinned apps ────────────────────────────────────────────
     Row {
+        id: pinnedRow
         anchors.centerIn: parent
         spacing: 4
 
@@ -115,7 +114,8 @@ Item {
                 width: 46; height: 46
 
                 readonly property bool isOpen: root.openIds.indexOf(modelData.id) !== -1
-                readonly property bool lit: iconHover.hovered || isOpen
+                readonly property bool isStarting: root.startingIds.indexOf(modelData.id) !== -1
+                readonly property bool lit: iconHover.hovered || isOpen || isStarting
 
                 HoverHandler { id: iconHover }
                 TapHandler { onTapped: root.launched(icon.modelData.id) }
@@ -151,17 +151,98 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 6
-                    width: icon.isOpen ? 14 : 4
+                    width: (icon.isOpen || icon.isStarting) ? 14 : 4
                     height: 2
-                    color: icon.isOpen ? Theme.accent : Theme.line
+                    color: (icon.isOpen || icon.isStarting) ? Theme.accent : Theme.line
                     Behavior on width { NumberAnimation { duration: Theme.durFast } }
+                    SequentialAnimation on opacity {
+                        running: icon.isStarting
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 0.25; duration: 520 }
+                        NumberAnimation { to: 1.0;  duration: 520 }
+                    }
                 }
             }
         }
     }
 
+    /* Open windows, between the pinned launchers and the tray.
+       The bar used to show only what had been pinned to it: two Firefox
+       windows were one button, and a window nobody had pinned did not appear
+       at all. These come from the compositor. */
+    /* Bounded on both sides and clipped. A Row grows with its content and had
+       no right edge, so a fourth window pushed the list under the clock. */
+    Item {
+        anchors { left: pinnedRow.right; leftMargin: 16
+                  right: tray.left; rightMargin: 16
+                  verticalCenter: parent.verticalCenter }
+        height: 30
+        clip: true
+        visible: Windows.available && Windows.windows.length > 0
+
+    Row {
+        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+        spacing: 4
+
+        Rectangle {
+            width: 1; height: 22
+            anchors.verticalCenter: parent.verticalCenter
+            color: Theme.line
+        }
+
+        Repeater {
+            model: Windows.windows
+
+            Item {
+                id: winButton
+                required property var modelData
+                width: Math.min(150, winLabel.implicitWidth + 22)
+                height: 30
+                anchors.verticalCenter: parent.verticalCenter
+
+                HoverHandler { id: winHover }
+                TapHandler {
+                    // Clicking the focused window puts it away, as everywhere else.
+                    onTapped: modelData.activated ? Windows.minimize(modelData.key)
+                                                  : Windows.activate(modelData.key)
+                }
+                TapHandler {
+                    acceptedButtons: Qt.RightButton
+                    onTapped: Windows.closeWindow(winButton.modelData.key)
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: modelData.activated ? Theme.tint(0.12)
+                         : winHover.hovered ? Theme.tint(0.06) : "transparent"
+                    border.width: 1
+                    border.color: modelData.activated ? Theme.accent : Theme.line
+                }
+
+                Text {
+                    id: winLabel
+                    anchors { left: parent.left; leftMargin: 10
+                              right: parent.right; rightMargin: 10
+                              verticalCenter: parent.verticalCenter }
+                    text: winButton.modelData.title
+                    color: modelData.minimized ? Theme.textMuted
+                         : modelData.activated ? Theme.accent : Theme.textBody
+                    font.family: Theme.mono
+                    font.pixelSize: Theme.size2xs
+                    elide: Text.ElideRight
+                    // Minimised is stated by the label going quiet, not by an
+                    // extra badge competing with the open-app dots below.
+                    opacity: modelData.minimized ? 0.55 : 1
+                }
+            }
+        }
+    }
+
+    }
+
     // ── tray ───────────────────────────────────────────────────
     Row {
+        id: tray
         anchors { right: parent.right; rightMargin: 18; verticalCenter: parent.verticalCenter }
         spacing: 14
 
@@ -280,6 +361,32 @@ Item {
             charging: root.batteryCharging
             present: root.batteryPresent
         }
+        /* Volume and brightness. Neither existed anywhere in the interface. */
+        Item {
+            width: 26; height: 26
+            anchors.verticalCenter: parent.verticalCenter
+            visible: Media.audioAvailable || Media.backlightAvailable
+            HoverHandler { id: mediaHover }
+            TapHandler { onTapped: root.mediaRequested() }
+            Rectangle {
+                anchors.fill: parent
+                color: (mediaHover.hovered || root.mediaOpen) ? Theme.tint(0.10) : "transparent"
+                border.width: 1
+                border.color: (mediaHover.hovered || root.mediaOpen)
+                              ? Theme.accent : "transparent"
+            }
+            GlyphIcon {
+                anchors.centerIn: parent
+                width: 16; height: 16
+                glyph: "volume"
+                // Muted is stated by the icon turning red, not by a slash that
+                // would be three pixels at this size.
+                stroke: Media.muted ? Theme.alert
+                      : (mediaHover.hovered || root.mediaOpen) ? Theme.accent
+                      : Theme.textMuted
+            }
+        }
+
         /* The way out. There was none: on a live image the only exit was the
            power button on the case, which is how you corrupt a USB stick. */
         Item {

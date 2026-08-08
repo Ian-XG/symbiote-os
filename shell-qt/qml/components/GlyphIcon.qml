@@ -101,6 +101,14 @@ Shape {
                             root.p(4, 24), root.p(4, 6)]
                 case "power":
                     return root.circle(15, 16, 10)
+                case "install":
+                    // A disk with an arrow going into it.
+                    return [root.p(4, 19), root.p(4, 25), root.p(26, 25), root.p(26, 19)]
+                case "volume":
+                    // Speaker cone.
+                    return [root.p(4, 12), root.p(9, 12), root.p(15, 6),
+                            root.p(15, 24), root.p(9, 18), root.p(4, 18),
+                            root.p(4, 12)]
                 case "bluetooth":
                     // The runic B: two triangles sharing a vertical stem.
                     return [root.p(10, 9), root.p(20, 20), root.p(15, 24.5),
@@ -199,6 +207,13 @@ Shape {
                 case "power":
                     // The standby mark: a broken ring with a stem.
                     return [[root.p(15, 4), root.p(15, 14)]]
+                case "volume":
+                    // Two waves; the mute state is drawn by the caller's colour.
+                    return [root.fan(15, 15, 6.5), root.fan(15, 15, 10)]
+                case "install":
+                    return [[root.p(15, 3), root.p(15, 16)],
+                            [root.p(10, 11), root.p(15, 16), root.p(20, 11)],
+                            [root.p(8, 22), root.p(11, 22)]]
                 case "pulse":
                     // An oscilloscope beat: the monitor.
                     return [[root.p(3, 15), root.p(9, 15), root.p(12, 7),

@@ -31,6 +31,25 @@ Item {
     property int latitudes: coarse ? 4 : 5
     property bool paused: false
 
+    /* What the mass is actually showing.
+     *
+     * Everything else on this screen is measured; this was the one thing that
+     * moved for its own sake. It is also the largest element on the display,
+     * which is a lot of screen spent on decoration.
+     *
+     * Now it turns at the speed of the processor, breathes with memory
+     * pressure, and its filaments quicken with network traffic. The caption
+     * says so, because an interface that encodes data without naming it is
+     * just a prettier kind of noise. */
+    property real load: 0        // 0..1, processor
+    property real memory: 0      // 0..1, memory in use
+    property real traffic: 0     // 0..1, network relative to session peak
+    property bool alert: false   // a security check is critical
+
+    // Idle turns once in 45s; saturated, once in 9. Eased so a brief spike
+    // does not make it lurch.
+    readonly property int spinMs: Math.round(45000 - 36000 * Math.max(0, Math.min(1, load)))
+
     readonly property real cx: width / 2
     readonly property real cy: height / 2
     readonly property real unit: Math.min(width, height) / 100
@@ -38,7 +57,7 @@ Item {
     property real phase: 0
     NumberAnimation on phase {
         from: 0; to: Math.PI * 2
-        duration: 30000
+        duration: root.spinMs
         loops: Animation.Infinite
         running: !root.paused
     }
@@ -202,8 +221,13 @@ Item {
                 running: !root.paused
                 loops: Animation.Infinite
                 PauseAnimation { duration: fil.index * 400 }
-                NumberAnimation { to: 0.75; duration: 1600; easing.type: Easing.InOutSine }
-                NumberAnimation { to: 0.30; duration: 1600; easing.type: Easing.InOutSine }
+                // 1600ms when the link is quiet, 320ms when it is saturated.
+                NumberAnimation { to: 0.75
+                                  duration: 1600 - 1280 * Math.max(0, Math.min(1, root.traffic))
+                                  easing.type: Easing.InOutSine }
+                NumberAnimation { to: 0.30
+                                  duration: 1600 - 1280 * Math.max(0, Math.min(1, root.traffic))
+                                  easing.type: Easing.InOutSine }
             }
 
             ShapePath {
@@ -301,7 +325,7 @@ Item {
             opacity: (spine ? 0.85 : 0.4) * (0.25 + 0.75 * Math.abs(squash))
 
             ShapePath {
-                strokeColor: Theme.accent
+                strokeColor: root.alert ? Theme.alert : Theme.accent
                 strokeWidth: meridian.spine ? 1.5 : 1
                 fillColor: "transparent"
                 PathPolyline { path: root.meridianPath }
@@ -317,7 +341,11 @@ Item {
         anchors.fill: parent
         layer.enabled: layersSafe
         layer.smooth: true
-        readonly property real r: root.unit * 14
+        /* Swells with memory in use: 11 units idle, 18 when full. Not
+           readonly — a Behavior cannot animate a readonly property, and QML
+           only says so at load time. */
+        property real r: root.unit * (11 + 7 * Math.max(0, Math.min(1, root.memory)))
+        Behavior on r { NumberAnimation { duration: 900; easing.type: Easing.OutCubic } }
         ShapePath {
             strokeColor: "transparent"
             fillGradient: RadialGradient {
@@ -374,7 +402,7 @@ Item {
         Text {
             anchors.right: parent.alignRight ? parent.right : undefined
             text: parent.value
-            color: Theme.textMuted
+            color: root.alert ? Theme.alert : Theme.textMuted
             font.family: Theme.mono
             font.pixelSize: Theme.size2xs
         }
@@ -419,7 +447,13 @@ Item {
         anchors.top: parent.bottom
         anchors.topMargin: 6
         // No invented frame rate: the old label printed "60 FPS" regardless.
-        text: root.paused ? "SYMBIONT MASS  //  PAUSED" : "SYMBIONT MASS  //  LIVE RENDER"
+        /* Named, not decorative. If the shape carries data the caption has to
+           say which, or it is decoration that merely looks informative. */
+        text: root.paused
+              ? "SYMBIONT MASS  //  PAUSED"
+              : "SYMBIONT MASS  //  SPIN " + Math.round(root.load * 100) + "% CPU"
+                + "   MASS " + Math.round(root.memory * 100) + "% MEM"
+                + (root.traffic > 0.01 ? "   FLUX ACTIVE" : "")
         color: Theme.textMuted
         font.family: Theme.mono
         font.pixelSize: Theme.size2xs

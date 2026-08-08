@@ -23,6 +23,10 @@ Item {
     readonly property int shown: Math.min(capacity, rows ? rows.length : 0)
     readonly property var visibleRows: rows ? rows.slice(0, shown) : []
 
+    /* Right-click on a row. The panel told you what was eating the machine and
+       gave you no way to act on it, which is half a feature. */
+    signal contextRequested(int pid, string name, real sx, real sy)
+
     Column {
         anchors.fill: parent
         spacing: 0
@@ -71,6 +75,21 @@ Item {
                 required property var modelData
                 width: root.width
                 height: root.rowH
+
+                HoverHandler { id: rowHover }
+                TapHandler {
+                    acceptedButtons: Qt.RightButton
+                    onTapped: function (point) {
+                        var g = parent.mapToItem(null, point.position.x, point.position.y)
+                        root.contextRequested(modelData.pid, modelData.name, g.x, g.y)
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    visible: rowHover.hovered
+                    color: Theme.tint(0.06)
+                }
 
                 readonly property bool hot: modelData.cpu > 60
                 // Relative to the busiest process, so movement stays visible

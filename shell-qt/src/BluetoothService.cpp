@@ -331,3 +331,11 @@ void BluetoothService::forget(const QString &path)
     }
     refresh();
 }
+
+void BluetoothService::clearError()
+{
+    if (m_lastError.isEmpty())
+        return;
+    m_lastError.clear();
+    emit changed();
+}

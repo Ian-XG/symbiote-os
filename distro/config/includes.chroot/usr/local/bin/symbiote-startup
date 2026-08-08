@@ -1,0 +1,17 @@
+#!/bin/sh
+# Everything the compositor should start with it.
+#
+# This exists as a file because labwc's -s does not run its argument through a
+# shell: it splits on whitespace and execs. Passing
+#
+#     labwc -s "symbiote-idle & exec symbiote-shell-run"
+#
+# therefore ran symbiote-idle with "&", "exec" and the shell's path as
+# arguments, which swayidle silently ignored — so the idle watchdog started,
+# the desktop never did, and the screen stayed black with no error anywhere.
+
+# The idle watchdog runs alongside the shell rather than inside it, so it keeps
+# working while the shell restarts.
+/usr/local/bin/symbiote-idle &
+
+exec /usr/local/bin/symbiote-shell-run

@@ -76,6 +76,10 @@ Item {
 
             Repeater {
                 model: [
+                    /* Lock does not arm-then-confirm. It is the one entry here
+                       that costs nothing to get wrong, and asking twice would
+                       train people out of using it. */
+                    { key: "lock",     label: "LOCK SCREEN", immediate: true },
                     { key: "logout",   label: "LOG OUT",  confirm: "CONFIRM LOG OUT" },
                     { key: "restart",  label: "RESTART",  confirm: "CONFIRM RESTART" },
                     { key: "shutdown", label: "SHUT DOWN", confirm: "CONFIRM SHUT DOWN",
@@ -93,6 +97,11 @@ Item {
                     HoverHandler { id: rowHover }
                     TapHandler {
                         onTapped: {
+                            if (row.modelData.immediate) {
+                                root.dismissed()
+                                PowerActions.lockScreen()
+                                return
+                            }
                             if (!row.isArmed) {
                                 // First press arms; second commits.
                                 root.armed = row.modelData.key

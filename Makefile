@@ -60,7 +60,7 @@ qt-check: image
 			{ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
 			  timeout 12 /work/qtcheck/build/symbiote-shell-qt > /tmp/qtrun.log 2>&1 || true; }; \
 			cat /tmp/qtrun.log; \
-			if grep -qE "failed to load|no type named|is not a type|Cannot assign|ReferenceError" /tmp/qtrun.log; then \
+			if grep -qE "failed to load|no type named|is not a type|Cannot assign|Invalid property|unavailable|ReferenceError|is not defined|Cannot open" /tmp/qtrun.log; then \
 				echo "QT SHELL: QML DID NOT LOAD"; exit 1; \
 			fi; \
 			echo "QT SHELL OK: $$(du -h /work/qtcheck/build/symbiote-shell-qt | cut -f1)"'

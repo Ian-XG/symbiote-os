@@ -19,6 +19,15 @@ class ProcessMonitor : public QObject
     Q_PROPERTY(QVariantList top READ top NOTIFY changed)
 
 public:
+    /* Ask a process to quit. Returns an empty string on success, or the reason
+       it was refused or failed — the panel shows that text rather than leaving
+       the operator to guess why nothing happened.
+
+       SIGTERM, then SIGKILL after a grace period: a process that is asked
+       politely gets to save first. */
+    Q_INVOKABLE QString terminate(int pid);
+
+public:
     explicit ProcessMonitor(QObject *parent = nullptr);
     QVariantList top() const { return m_top; }
 

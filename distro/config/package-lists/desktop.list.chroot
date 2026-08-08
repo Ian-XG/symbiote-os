@@ -56,6 +56,7 @@ sudo
 # firmware for the one in use means no working GL, which is one of the ways
 # the shell ends up on a blank screen.
 firmware-amd-graphics
+firmware-intel-graphics
 firmware-misc-nonfree
 
 # Firmware for real hardware. Wifi and bluetooth chips do not come up without it.
@@ -80,3 +81,22 @@ hicolor-icon-theme
 adwaita-icon-theme
 # SVG icons are common; without this Qt loads the PNG variants only.
 libqt6svg6
+# Volume and brightness. wpctl ships with wireplumber, which is already here;
+# brightnessctl
+# Screen lock, idle handling and screenshots. A laptop you carry, with no lock
+# screen, is not a secure system whatever the firewall says; and a machine for
+# security work with no way to capture the screen cannot document anything.
+swaylock
+swayidle
+grim
+slurp
+wl-clipboard
+# Lets applications take screenshots and share screens through the portal
+# rather than each needing compositor privileges.
+xdg-desktop-portal-wlr
+xdg-desktop-portal
+brightnessctl
+# Lets applications take screenshots and share screens through the portal
+# rather than each needing compositor privileges.
+# swayidle turns the panel off through this.
+wlopm

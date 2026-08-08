@@ -21,6 +21,9 @@
 #include "PacedAnimationDriver.h"
 #include "PowerActions.h"
 #include "PrefsStore.h"
+#include "ToplevelManager.h"
+#include "MediaService.h"
+#include "KeyboardService.h"
 
 /*
  * Symbiote Shell — Qt/QML.
@@ -97,6 +100,9 @@ int main(int argc, char *argv[])
     AppLauncher apps;
     PowerActions powerActions;
     PrefsStore prefsStore;
+    ToplevelManager toplevels;
+    MediaService media;
+    KeyboardService keyboard;
 
     QQmlApplicationEngine engine;
     auto *ctx = engine.rootContext();
@@ -109,6 +115,9 @@ int main(int argc, char *argv[])
     ctx->setContextProperty(QStringLiteral("Apps"), &apps);
     ctx->setContextProperty(QStringLiteral("PowerActions"), &powerActions);
     ctx->setContextProperty(QStringLiteral("Store"), &prefsStore);
+    ctx->setContextProperty(QStringLiteral("Windows"), &toplevels);
+    ctx->setContextProperty(QStringLiteral("Media"), &media);
+    ctx->setContextProperty(QStringLiteral("Keyboard"), &keyboard);
     ctx->setContextProperty(QStringLiteral("uiScale"), scale);
     /* Lets the scene decide how much it can afford to draw. A GPU renders the
        hologram for free; rasterising it in software costs two thirds of the

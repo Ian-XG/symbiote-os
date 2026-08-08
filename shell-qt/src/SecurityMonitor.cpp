@@ -1,5 +1,10 @@
 #include "SecurityMonitor.h"
 
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusReply>
+#include <QDBusObjectPath>
+
 #include <QProcess>
 #include <QFile>
 #include <QDir>
@@ -34,6 +39,68 @@ QString run(const QString &cmd, const QStringList &args, int timeoutMs = 4000)
 
 } // namespace
 
+/* Health of the medium the system booted from.
+ *
+ * A failing USB stick does not announce itself. What it does is return read
+ * errors for pages that are not already in memory — so the desktop keeps
+ * running perfectly while every attempt to *start* something dies with
+ * "execve: Input/output error", which reads like a bug in the shell and is
+ * not one.
+ *
+ * The SCSI layer counts these per device and exposes the count without root.
+ * Surfacing it turns an unexplainable failure into a diagnosis. */
+QVariantMap SecurityMonitor::medium()
+{
+    qint64 total = 0;
+    bool sawCounter = false;
+
+    const QFileInfoList disks = QDir(QStringLiteral("/sys/block")).entryInfoList(
+        QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QFileInfo &d : disks) {
+        /* Optical devices are excluded. A CD-ROM — including the virtual one
+           a VM presents — counts ordinary check conditions from enumeration
+           as errors, so a healthy machine reports a handful and this row
+           would sit permanently red. Which is how the first version of it
+           behaved. */
+        if (d.fileName().startsWith(QLatin1String("sr")))
+            continue;
+
+        QFile f(d.absoluteFilePath() + QStringLiteral("/device/ioerr_cnt"));
+        if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+            continue;
+        sawCounter = true;
+        bool ok = false;
+        // Hexadecimal, which is not obvious and reads as a suspiciously large
+        // decimal if you assume otherwise.
+        const qint64 n = QString::fromUtf8(f.readAll()).trimmed().toLongLong(&ok, 16);
+        if (ok)
+            total += n;
+    }
+
+    if (!sawCounter)
+        return row(QStringLiteral("Boot medium"), QStringLiteral("NOT REPORTED"),
+                   QStringLiteral("idle"));
+
+    /* Baselined at first sample. What matters is not how many errors a device
+       has ever logged, but whether it is logging them now: a stick that is
+       failing keeps producing them, and one that logged a few during boot and
+       stopped is fine. */
+    if (m_mediumBaseline < 0) {
+        m_mediumBaseline = total;
+        return row(QStringLiteral("Boot medium"), QStringLiteral("HEALTHY"),
+                   QStringLiteral("ok"));
+    }
+
+    const qint64 since = total - m_mediumBaseline;
+    if (since <= 0)
+        return row(QStringLiteral("Boot medium"), QStringLiteral("HEALTHY"),
+                   QStringLiteral("ok"));
+
+    return row(QStringLiteral("Boot medium"),
+               QStringLiteral("%1 READ ERRORS").arg(since),
+               QStringLiteral("critical"));
+}
+
 SecurityMonitor::SecurityMonitor(QObject *parent) : QObject(parent)
 {
     sample();
@@ -41,23 +108,64 @@ SecurityMonitor::SecurityMonitor(QObject *parent) : QObject(parent)
     m_timer.start(8000);
 }
 
+/* Ask systemd, not the kernel.
+ *
+ * This row reported "NOT RUNNING" on every boot the shell has ever had, and it
+ * was never looking at the firewall: reading the nftables ruleset needs
+ * CAP_NET_ADMIN, and the shell runs as an ordinary user. `nft list ruleset`
+ * returned "Operation not permitted", the code saw empty output, and printed
+ * a red NOT RUNNING — a confident answer to a question it could not ask.
+ *
+ * systemd's unit state is readable by anyone on the system bus, so that is
+ * what gets asked. It answers a slightly different question — is the firewall
+ * service up — but it answers it truthfully, which the old check did not.
+ */
 QVariantMap SecurityMonitor::firewall()
 {
-    const QString nft = run("nft", {"list", "ruleset"});
-    if (!nft.trimmed().isEmpty()) {
-        const int rules = nft.count(QRegularExpression("^\\s*(accept|drop|reject|jump|goto)\\b",
-                                                       QRegularExpression::MultilineOption));
-        // A loaded but empty ruleset is permissive; that distinction matters.
-        return rules > 0 ? row("Firewall", QString("ACTIVE (%1 rules)").arg(rules), "ok")
-                         : row("Firewall", "LOADED, NO RULES", "attention");
+    QDBusInterface systemd(QStringLiteral("org.freedesktop.systemd1"),
+                           QStringLiteral("/org/freedesktop/systemd1"),
+                           QStringLiteral("org.freedesktop.systemd1.Manager"),
+                           QDBusConnection::systemBus());
+    systemd.setTimeout(3000);
+
+    const QStringList units = { QStringLiteral("nftables.service"),
+                                QStringLiteral("ufw.service"),
+                                QStringLiteral("firewalld.service") };
+
+    bool reachedSystemd = false;
+    for (const QString &unit : units) {
+        QDBusReply<QString> state = systemd.call(QStringLiteral("GetUnitFileState"), unit);
+        if (!state.isValid())
+            continue;              // unit not installed
+        reachedSystemd = true;
+
+        QDBusReply<QDBusObjectPath> path = systemd.call(QStringLiteral("GetUnit"), unit);
+        if (!path.isValid())
+            continue;              // installed but never started
+
+        QDBusInterface props(QStringLiteral("org.freedesktop.systemd1"), path.value().path(),
+                             QStringLiteral("org.freedesktop.DBus.Properties"),
+                             QDBusConnection::systemBus());
+        props.setTimeout(3000);
+        const QDBusReply<QVariant> active =
+            props.call(QStringLiteral("Get"), QStringLiteral("org.freedesktop.systemd1.Unit"),
+                       QStringLiteral("ActiveState"));
+        if (!active.isValid())
+            continue;
+
+        const QString value = active.value().toString();
+        const QString name = unit.section(QLatin1Char('.'), 0, 0).toUpper();
+        if (value == QLatin1String("active"))
+            return row("Firewall", QStringLiteral("ACTIVE · %1").arg(name), "ok");
+        if (value == QLatin1String("activating"))
+            return row("Firewall", QStringLiteral("STARTING · %1").arg(name), "attention");
+        return row("Firewall", QStringLiteral("%1 · %2").arg(value.toUpper(), name), "critical");
     }
 
-    const QString ipt = run("iptables-save", {});
-    const int rules = ipt.count(QRegularExpression("^-A", QRegularExpression::MultilineOption));
-    if (rules > 0)
-        return row("Firewall", QString("ACTIVE (%1 rules)").arg(rules), "ok");
-
-    return row("Firewall", "NOT RUNNING", "critical");
+    /* Distinguish "no firewall" from "could not ask". Claiming the machine is
+       exposed because the bus was unreachable is the mistake this replaced. */
+    return reachedSystemd ? row("Firewall", "NOT RUNNING", "critical")
+                          : row("Firewall", "UNKNOWN", "idle");
 }
 
 QVariantMap SecurityMonitor::vpn()
@@ -133,7 +241,7 @@ QVariantMap SecurityMonitor::ports()
 
 void SecurityMonitor::sample()
 {
-    m_rows = QVariantList{ firewall(), vpn(), encryption(), updates(), ports() };
+    m_rows = QVariantList{ firewall(), vpn(), encryption(), updates(), ports(), medium() };
     emit changed();
 }
 

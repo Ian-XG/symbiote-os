@@ -31,6 +31,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       qt6-declarative-dev \
       qt6-declarative-private-dev \
       libqt6opengl6-dev \
+      qt6-base-private-dev \
+      libwayland-dev \
+      wayland-protocols \
     && rm -rf /var/lib/apt/lists/*
 
 # Node for building the Electron shell in the same pass.
