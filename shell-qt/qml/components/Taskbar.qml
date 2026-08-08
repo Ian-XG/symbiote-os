@@ -62,14 +62,10 @@ Item {
         HoverHandler { id: menuHover }
         TapHandler { onTapped: root.menuToggled() }
 
-        Rectangle {
-            anchors.fill: parent
-            color: (menuHover.hovered || root.launcherOpen)
-                   ? Theme.tint(0.08) : "transparent"
-            border.width: 1
-            border.color: (menuHover.hovered || root.launcherOpen)
-                          ? Theme.accent : Theme.tint(0.10)
-        }
+        /* No frame. The mark is a shape with its own silhouette, and boxing it
+           made the corner look like a button with a sticker on it. The hover
+           state is the mark itself brightening and growing slightly, which is
+           what a physical thing does when you reach for it. */
 
         /* The mass itself. This corner is where a system puts its mark, and
            the shell had a generic app-grid there — correct as a convention,
@@ -79,16 +75,19 @@ Item {
         Image {
             id: menuRow
             anchors.centerIn: parent
-            width: 26; height: 26
-            source: "qrc:/assets/symbiote-64.png"
+            width: 30; height: 30
+            source: "qrc:/assets/symbiote-128.png"
             fillMode: Image.PreserveAspectFit
             smooth: true
             sourceSize.width: 64
             sourceSize.height: 64
             // Dimmed until wanted, so it sits in the bar rather than shouting
             // from it.
-            opacity: (menuHover.hovered || root.launcherOpen) ? 1.0 : 0.82
+            opacity: (menuHover.hovered || root.launcherOpen) ? 1.0 : 0.78
+            scale: (menuHover.hovered || root.launcherOpen) ? 1.12 : 1.0
             Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+            Behavior on scale { NumberAnimation { duration: Theme.durFast
+                                                  easing.type: Easing.OutCubic } }
         }
     }
 

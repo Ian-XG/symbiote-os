@@ -16,6 +16,7 @@ symbiote-persist — create persistent storage for this live image
 
     symbiote-persist list                  show candidate partitions
     symbiote-persist init <device>         format <device> for persistence
+    symbiote-persist auto                  use the free space on the boot medium
     symbiote-persist init <device> --luks  same, encrypted with a passphrase
 
 The device must be a partition (for example /dev/sdb3), not a whole disk, and
@@ -81,6 +82,64 @@ init)
 
 	echo
 	echo "Done. Reboot and this partition will hold your changes."
+	;;
+
+auto)
+	# Called by the desktop when it notices unallocated space on the medium
+	# this system booted from. Everything destructive still happens here,
+	# behind the same typed confirmation: the shell only opens the door.
+	require_root "$@"
+
+	MEDIUM=$(findmnt -no SOURCE /run/live/medium 2>/dev/null || true)
+	if [ -z "$MEDIUM" ]; then
+		echo "Not running from live media — nothing to add persistence to." >&2
+		exit 1
+	fi
+
+	# The partition the image is on; its parent disk is what has the space.
+	PART=$(basename "$MEDIUM")
+	DISK=$(lsblk -no PKNAME "$MEDIUM" 2>/dev/null | head -1)
+	[ -n "$DISK" ] || { echo "Could not identify the disk behind $MEDIUM." >&2; exit 1; }
+	DEV="/dev/$DISK"
+
+	if lsblk -no LABEL "$DEV" 2>/dev/null | grep -qx persistence; then
+		echo "This medium already has a persistence partition."
+		exit 0
+	fi
+
+	FREE=$(sfdisk --list-free "$DEV" 2>/dev/null | awk '/^ /{print $NF}' | tail -1)
+	echo "Boot medium : $DEV"
+	echo "Free space  : ${FREE:-unknown}"
+	echo
+	echo "This creates a new partition in the unallocated space at the end of"
+	echo "$DEV and formats it. The existing partitions, including the one this"
+	echo "system is running from, are not touched — but partitioning the disk"
+	echo "you booted from is not risk-free, and there is no undo."
+	read -r -p "Type ERASE to continue: " confirm
+	[ "$confirm" = "ERASE" ] || { echo "Cancelled."; exit 1; }
+
+	# ",," means: start after the last partition, use everything left.
+	echo ',,L' | sfdisk --append --no-reread "$DEV" || {
+		echo "Could not add a partition. Is there unallocated space?" >&2
+		exit 1
+	}
+	partprobe "$DEV" 2>/dev/null || true
+	sleep 2
+
+	NEW=$(lsblk -lno NAME,TYPE "$DEV" | awk '$2=="part"{print $1}' | tail -1)
+	[ -n "$NEW" ] || { echo "The new partition did not appear." >&2; exit 1; }
+	TARGET="/dev/$NEW"
+	echo "Formatting $TARGET"
+
+	mkfs.ext4 -q -L persistence -F "$TARGET"
+	mnt=$(mktemp -d)
+	mount "$TARGET" "$mnt"
+	echo "/ union" > "$mnt/persistence.conf"
+	umount "$mnt"
+	rmdir "$mnt"
+
+	echo
+	echo "Done. Reboot and this medium will keep your changes."
 	;;
 
 *)

@@ -24,6 +24,7 @@
 #include "ToplevelManager.h"
 #include "MediaService.h"
 #include "KeyboardService.h"
+#include "LiveMedium.h"
 
 /*
  * Symbiote Shell — Qt/QML.
@@ -103,6 +104,7 @@ int main(int argc, char *argv[])
     ToplevelManager toplevels;
     MediaService media;
     KeyboardService keyboard;
+    LiveMedium medium;
 
     QQmlApplicationEngine engine;
     auto *ctx = engine.rootContext();
@@ -118,6 +120,7 @@ int main(int argc, char *argv[])
     ctx->setContextProperty(QStringLiteral("Windows"), &toplevels);
     ctx->setContextProperty(QStringLiteral("Media"), &media);
     ctx->setContextProperty(QStringLiteral("Keyboard"), &keyboard);
+    ctx->setContextProperty(QStringLiteral("Medium"), &medium);
     ctx->setContextProperty(QStringLiteral("uiScale"), scale);
     /* Lets the scene decide how much it can afford to draw. A GPU renders the
        hologram for free; rasterising it in software costs two thirds of the

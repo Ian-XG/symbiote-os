@@ -67,6 +67,7 @@ qt_add_executable(symbiote-shell-qt
     src/ToplevelManager.cpp
     src/MediaService.cpp
     src/KeyboardService.cpp
+    src/LiveMedium.cpp
     ${WLR_HEADER}
     ${WLR_SOURCE}
     src/PowerService.cpp

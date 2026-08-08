@@ -83,6 +83,9 @@ adwaita-icon-theme
 libqt6svg6
 # Volume and brightness. wpctl ships with wireplumber, which is already here;
 # brightnessctl
+# symbiote-persist auto adds a partition in the free space of the boot medium:
+# sfdisk comes with util-linux, partprobe does not.
+parted
 # Screen lock, idle handling and screenshots. A laptop you carry, with no lock
 # screen, is not a secure system whatever the firewall says; and a machine for
 # security work with no way to capture the screen cannot document anything.
@@ -96,6 +99,9 @@ wl-clipboard
 xdg-desktop-portal-wlr
 xdg-desktop-portal
 brightnessctl
+# symbiote-persist auto adds a partition in the free space of the boot medium:
+# sfdisk comes with util-linux, partprobe does not.
+parted
 # Lets applications take screenshots and share screens through the portal
 # rather than each needing compositor privileges.
 # swayidle turns the panel off through this.

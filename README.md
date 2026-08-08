@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="docs/img/logo.png" width="128" alt="Symbiote OS">
+  <img src="docs/img/wordmark.png" width="480" alt="Symbiote OS">
 </p>
-
-<h1 align="center">Symbiote OS</h1>
 
 <p align="center">
   A Debian live distribution with a cinematic FUI desktop shell, built for
