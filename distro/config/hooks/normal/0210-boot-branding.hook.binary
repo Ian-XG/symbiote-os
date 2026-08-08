@@ -35,8 +35,10 @@ for d in $(find . .. -maxdepth 4 -type d -name isolinux 2>/dev/null); do
 		[ -f "$cfg" ] || continue
 		sed -i 's|^menu background .*|menu background splash.png|' "$cfg" 2>/dev/null || true
 		sed -i 's/Debian GNU\/Linux/Symbiote OS/g; s/^menu title .*/menu title Symbiote OS/' "$cfg" 2>/dev/null || true
-		sed -i 's/Live System (\(.*\))/Symbiote OS (\1)/g; s/^menu label \^Live System$/menu label ^Symbiote OS/' "$cfg" 2>/dev/null || true
-		sed -i 's/Live System/Symbiote OS/g' "$cfg" 2>/dev/null || true
+		# Case-insensitive: Debian writes "Live system" with a lower-case s,
+		# and matching "Live System" quietly changed nothing while the hook
+		# still reported success.
+		sed -i 's/[Ll]ive [Ss]ystem/Symbiote OS/g' "$cfg" 2>/dev/null || true
 	done
 	echo "I:   branded $d"
 	patched=$((patched + 1))
@@ -44,7 +46,7 @@ done
 
 # ── grub (UEFI) ────────────────────────────────────────────────────────────
 for cfg in $(find . .. -maxdepth 5 -name 'grub.cfg' 2>/dev/null); do
-	sed -i 's/Live System/Symbiote OS/g; s/Debian GNU\/Linux/Symbiote OS/g' "$cfg" 2>/dev/null || true
+	sed -i 's/[Ll]ive [Ss]ystem/Symbiote OS/g; s/Debian GNU\/Linux/Symbiote OS/g' "$cfg" 2>/dev/null || true
 	# grub needs to be told to load a background at all.
 	if ! grep -q 'background_image' "$cfg"; then
 		dir=$(dirname "$cfg")
@@ -54,6 +56,12 @@ for cfg in $(find . .. -maxdepth 5 -name 'grub.cfg' 2>/dev/null); do
 	echo "I:   branded $cfg"
 	patched=$((patched + 1))
 done
+
+# Verify rather than assume. The first version of this reported five files
+# branded and left every menu entry saying "Live system".
+if grep -rilE 'live system' $(find . .. -maxdepth 5 \( -name '*.cfg' \) 2>/dev/null) 2>/dev/null | head -1 | grep -q .; then
+	echo "W: BOOT LABELS NOT FULLY REPLACED — some entries still say Live system" >&2
+fi
 
 if [ "$patched" -eq 0 ]; then
 	echo "W: BOOT BRANDING NOT APPLIED — no isolinux or grub tree found" >&2

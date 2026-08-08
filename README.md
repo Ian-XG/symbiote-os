@@ -8,6 +8,10 @@
   <sub>MIT OR GPL-3.0-or-later · Qt 6 / QML · Wayland</sub>
 </p>
 
+<p align="center">
+  <a href="https://github.com/Ian-XG/symbiote-os/releases/latest"><b>Download the ISO</b></a>
+</p>
+
 ![The desktop](docs/img/desktop.png)
 
 Every number on that screen is measured. There is no placeholder data anywhere
@@ -105,6 +109,14 @@ ACCENT=signal make qt-shot             # in the blue accent
 ```
 
 ## Running it
+
+Ready-made images are on the [releases
+page](https://github.com/Ian-XG/symbiote-os/releases). Verify what you
+downloaded before writing it to anything:
+
+```sh
+shasum -a 256 -c SHA256SUMS
+```
 
 Flash the ISO to a USB stick (Balena Etcher works; the image is isohybrid).
 User and password are both `symbiote` — the documented default of a live
