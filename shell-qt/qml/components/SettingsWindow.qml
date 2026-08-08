@@ -497,7 +497,7 @@ Item {
                     { k: "Uptime", v: Math.floor(System.uptime / 3600) + "h "
                         + Math.floor((System.uptime % 3600) / 60) + "m" },
                     { k: "Shell", v: "Symbiote Shell (Qt) 0.1" },
-                    { k: "Licence", v: "GPL-3.0" },
+                    { k: "Licence", v: "MIT OR GPL-3.0-or-later" },
                     { k: "Settings file", v: Store.path() },
                     { k: "Persistence", v: Store.persistent() ? "active" : "none — changes are lost on reboot" }
                 ]

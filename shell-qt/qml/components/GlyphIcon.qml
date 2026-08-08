@@ -104,6 +104,9 @@ Shape {
                 case "install":
                     // A disk with an arrow going into it.
                     return [root.p(4, 19), root.p(4, 25), root.p(26, 25), root.p(26, 19)]
+                case "agent":
+                    // A core with satellites: something that reasons and acts.
+                    return root.circle(15, 15, 5.5)
                 case "volume":
                     // Speaker cone.
                     return [root.p(4, 12), root.p(9, 12), root.p(15, 6),
@@ -207,6 +210,21 @@ Shape {
                 case "power":
                     // The standby mark: a broken ring with a stem.
                     return [[root.p(15, 4), root.p(15, 14)]]
+                case "agent": {
+                    var out = []
+                    for (var q = 0; q < 3; q++) {
+                        var aa = (q / 3) * Math.PI * 2 - Math.PI / 2
+                        out.push([root.p(15 + Math.cos(aa) * 6.5, 15 + Math.sin(aa) * 6.5),
+                                  root.p(15 + Math.cos(aa) * 11, 15 + Math.sin(aa) * 11)])
+                        // The satellite itself.
+                        var sx = 15 + Math.cos(aa) * 12.5
+                        var sy = 15 + Math.sin(aa) * 12.5
+                        out.push([root.p(sx - 1.6, sy - 1.6), root.p(sx + 1.6, sy - 1.6),
+                                  root.p(sx + 1.6, sy + 1.6), root.p(sx - 1.6, sy + 1.6),
+                                  root.p(sx - 1.6, sy - 1.6)])
+                    }
+                    return out
+                }
                 case "volume":
                     // Two waves; the mute state is drawn by the caller's colour.
                     return [root.fan(15, 15, 6.5), root.fan(15, 15, 10)]

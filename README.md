@@ -1,12 +1,28 @@
-# Symbiote OS
+<p align="center">
+  <img src="docs/img/logo.png" width="128" alt="Symbiote OS">
+</p>
 
-A Debian-based live distribution with a cinematic FUI desktop shell, built for
-security work and programming.
+<h1 align="center">Symbiote OS</h1>
 
-Free software under the GPL-3.0. The desktop shell, the live-build
-configuration and the session scripts here are all original work; the system
-underneath is Debian and the daemons the shell talks to — NetworkManager,
-BlueZ, UPower, PipeWire — are theirs, not reimplemented here.
+<p align="center">
+  A Debian live distribution with a cinematic FUI desktop shell, built for
+  security work and programming.<br>
+  <sub>MIT OR GPL-3.0-or-later · Qt 6 / QML · Wayland</sub>
+</p>
+
+![The desktop](docs/img/desktop.png)
+
+Every number on that screen is measured. There is no placeholder data anywhere
+in the interface: where a value cannot be read, the panel says so rather than
+inventing one. The mass in the middle turns at the speed of the processor and
+swells with memory in use, and the caption underneath says which — an
+interface that encodes data without naming it is just a prettier kind of noise.
+
+Free software, dual licensed under MIT or GPL-3.0-or-later at your option. The
+desktop shell, the live-build configuration and the session scripts here are
+all original work; the system underneath is Debian and the daemons the shell
+talks to — NetworkManager, BlueZ, UPower, PipeWire — are theirs, not
+reimplemented here.
 
 **Dual-use.** The image ships penetration-testing tools. They are for systems
 you own or have written permission to test. The software does not and cannot
@@ -14,6 +30,18 @@ know what you are authorised to touch.
 
 The visual design originates in a Claude Design project (`../symbiote-os-design`);
 this repository turns it into an operating system that boots.
+
+## What it looks like
+
+| | |
+| --- | --- |
+| ![Applications](docs/img/launcher.png) | ![Settings](docs/img/settings.png) |
+| The launcher reads the system's real desktop entries, grouped. | Nine sections, and every control acts on something. |
+
+![Signal blue](docs/img/signal.png)
+
+The whole shell recolours from one property. Red stays reserved for states
+that are genuinely critical.
 
 ## Architecture
 
@@ -53,6 +81,7 @@ and will be removed once Qt has been proven on real hardware for a while.
 | `shell/` | The retired Electron shell, kept until the Qt one is trusted |
 | `build.sh` | Runs inside the build container; produces the ISO |
 | `Makefile` | Everything you actually invoke |
+| `docs/img/` | The screenshots above, rendered headlessly by `make qt-shot` |
 
 ## Building
 
@@ -132,3 +161,13 @@ quietly evaporate are worse than settings that tell you they will.
   redistribute; a USB dongle works without it.
 - Legacy Bluetooth pairing that requires typing a PIN is rejected with an
   explicit message rather than a guessed `0000`.
+
+## Licence
+
+`SPDX-License-Identifier: MIT OR GPL-3.0-or-later` — take it under either, at
+your option. See [LICENSE](LICENSE) for what that covers and what it does not.
+
+Worth knowing before you rely on the GPL half: when a work is offered under
+*either* licence, a recipient can simply choose MIT. Dual licensing this way
+does not keep derivatives open — it permits closed ones. That is a fine
+choice; it is just not copyleft.

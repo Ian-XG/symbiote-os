@@ -82,7 +82,8 @@ QtObject {
         { id: "vuln",     glyph: "bug",      title: "VULN SCANNER", short: "VULN",     code: "REC_11" },
         { id: "firewall", glyph: "shield",   title: "FIREWALL",     short: "FIREWALL", code: "DEF_20" },
         { id: "monitor",  glyph: "pulse",    title: "MONITOR",      short: "MONITOR",  code: "DEF_21" },
-        { id: "install",  glyph: "install",  title: "INSTALL SYSTEM", short: "INSTALL", code: "SYS_09" }
+        { id: "install",  glyph: "install",  title: "INSTALL SYSTEM", short: "INSTALL", code: "SYS_09" },
+        { id: "pentai",   glyph: "agent",    title: "PENTAI",         short: "PENTAI",  code: "AI_30" }
     ]
 
     /* Resolved once. Entries without an iconName, or whose icon the theme does

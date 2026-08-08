@@ -42,3 +42,10 @@ apparmor-profiles
 apparmor-utils
 # For symbiote-persist --luks: encrypting the persistence partition.
 cryptsetup
+# PentAI is installed from source by hooks/normal/0500-pentai.hook.chroot;
+# these are what its virtualenv builds against, and packaging them here means
+# the venv reuses Debian's copies instead of fetching its own.
+python3-prompt-toolkit
+python3-rich
+python3-httpx
+python3-yaml

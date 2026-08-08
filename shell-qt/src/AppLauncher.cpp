@@ -32,6 +32,11 @@ AppLauncher::AppLauncher(QObject *parent) : QObject(parent)
         {"nmap",     {"foot", {"-T", "Network Scan", "sh", "-c", "nmap --help; exec ${SHELL:-sh}"}}},
         {"vuln",     {"foot", {"-T", "Vuln Scanner", "sh", "-c", "nikto -Help 2>&1 | head -20; exec ${SHELL:-sh}"}}},
         {"monitor",  {"foot", {"-T", "Monitor", "sh", "-c", "exec top"}}},
+        /* PentAI asks for a provider and a key on first run, so it opens in a
+           terminal that stays after it exits — otherwise the wizard would
+           flash past and the window would vanish. */
+        {"pentai",   {"foot", {"-T", "PentAI", "sh", "-c",
+                               "pentai; echo; echo '[PentAI exited]'; exec ${SHELL:-sh}"}}},
         {"firewall", {"foot", {"-T", "Firewall", "sh", "-c", "nft list ruleset 2>&1 | head -40; exec ${SHELL:-sh}"}}},
     };
 

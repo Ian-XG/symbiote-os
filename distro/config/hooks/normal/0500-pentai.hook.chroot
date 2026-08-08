@@ -1,0 +1,48 @@
+#!/bin/sh
+# PentAI, preinstalled.
+#
+# Into a virtualenv at /opt/pentai rather than the system Python: Debian marks
+# its interpreter externally-managed (PEP 668), so `pip install` into it is
+# refused outright — and overriding that is how you break apt later.
+#
+# --system-site-packages so the dependencies Debian already packages are
+# reused instead of downloaded twice.
+set -e
+
+REPO=https://github.com/Ian-XG/PentAI.git
+DEST=/opt/pentai
+
+echo "I: installing PentAI"
+
+if ! git clone --depth 1 "$REPO" /tmp/pentai-src 2>/dev/null; then
+	# A build without network should say so rather than produce an image with
+	# a launcher that fails when somebody clicks it.
+	echo "W: could not clone PentAI — it will be missing from this image" >&2
+	exit 0
+fi
+
+python3 -m venv --system-site-packages "$DEST"
+"$DEST/bin/pip" install --quiet --no-cache-dir /tmp/pentai-src || {
+	echo "W: PentAI failed to install — leaving it out rather than shipping a stub" >&2
+	rm -rf "$DEST"
+	rm -rf /tmp/pentai-src
+	exit 0
+}
+rm -rf /tmp/pentai-src
+
+# On PATH under its own name.
+ln -sf "$DEST/bin/pentai" /usr/local/bin/pentai
+
+cat > /usr/share/applications/pentai.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=PentAI
+GenericName=Terminal AI agent
+Comment=Plans and runs security testing commands, one confirmed step at a time
+Exec=foot -T PentAI pentai
+Icon=utilities-terminal
+Terminal=false
+Categories=Security;System;
+DESKTOP
+
+echo "I: PentAI installed at $DEST"
