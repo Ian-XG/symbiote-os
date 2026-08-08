@@ -3,6 +3,15 @@
 A Debian-based live distribution with a cinematic FUI desktop shell, built for
 security work and programming.
 
+Free software under the GPL-3.0. The desktop shell, the live-build
+configuration and the session scripts here are all original work; the system
+underneath is Debian and the daemons the shell talks to — NetworkManager,
+BlueZ, UPower, PipeWire — are theirs, not reimplemented here.
+
+**Dual-use.** The image ships penetration-testing tools. They are for systems
+you own or have written permission to test. The software does not and cannot
+know what you are authorised to touch.
+
 The visual design originates in a Claude Design project (`../symbiote-os-design`);
 this repository turns it into an operating system that boots.
 
