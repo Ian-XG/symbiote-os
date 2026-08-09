@@ -49,3 +49,84 @@ python3-prompt-toolkit
 python3-rich
 python3-httpx
 python3-yaml
+
+# ── the rest of the kit ─────────────────────────────────────────────────────
+# Chosen for coverage rather than completeness: one or two tools for each thing
+# an operator actually does, not every tool that does it. Everything here is in
+# Debian main — the workflow in .github/workflows/packages.yml checks that on
+# every change, because live-build feeds these lines to apt verbatim and one
+# wrong name fails the build twenty minutes in.
+#
+# Still missing, and still not packaged by Debian: Metasploit, Burp Suite,
+# CrackMapExec, SecLists. See distro/README-tools.md.
+
+# Downloading things the hooks install (Ollama, PentAI).
+curl
+ca-certificates
+
+# ── information gathering ───────────────────────────────────────────────────
+dnsrecon
+dnsenum
+theharvester
+netdiscover
+fping
+sslscan
+whatweb
+smbclient
+nbtscan
+onesixtyone
+
+# ── vulnerability analysis ──────────────────────────────────────────────────
+lynis
+wapiti
+
+# ── web application ─────────────────────────────────────────────────────────
+gobuster
+ffuf
+wfuzz
+
+# ── password attacks ────────────────────────────────────────────────────────
+medusa
+ncrack
+crunch
+cewl
+
+# ── wireless ────────────────────────────────────────────────────────────────
+reaver
+wifite
+mdk4
+hcxtools
+hcxdumptool
+macchanger
+iw
+
+# ── sniffing and spoofing ───────────────────────────────────────────────────
+ettercap-text-only
+dsniff
+bettercap
+mitmproxy
+responder
+netsniff-ng
+
+# ── reverse engineering ─────────────────────────────────────────────────────
+radare2
+gdb
+ltrace
+strace
+binwalk
+hexedit
+
+# ── forensics ───────────────────────────────────────────────────────────────
+sleuthkit
+foremost
+testdisk
+libimage-exiftool-perl
+steghide
+
+# ── post exploitation ───────────────────────────────────────────────────────
+python3-impacket
+rlwrap
+
+# ── anonymity ───────────────────────────────────────────────────────────────
+tor
+torsocks

@@ -1,0 +1,186 @@
+#!/bin/sh
+# Ollama, preinstalled — local models, no account, no network at inference time.
+#
+# Installed from the upstream tarball rather than a Debian package, because
+# there is no Debian package. The official install script is not used: it
+# expects systemd to be running, curls into a shell as root, and creates a user
+# with `useradd -m`, none of which is appropriate inside a chroot being built.
+# The tarball is the same artefact the script downloads.
+#
+# WHAT IS DELIBERATELY THROWN AWAY:
+#
+# The tarball carries CUDA and ROCm runners — around 1.3 GB of vendor blobs
+# for GPUs. Keeping them would roughly double the ISO for hardware most people
+# carrying a live USB do not have, so they are pruned and the CPU runner is
+# kept. A machine with an NVIDIA or AMD card can get the accelerated runners
+# back with the upstream installer, which the first-run notice says.
+#
+# NO MODEL IS SHIPPED. The smallest one worth using is about 1 GB and the
+# useful ones are several; an ISO carrying a model nobody asked for is an ISO
+# nobody wants to download. `ollama-setup` pulls one on request.
+set -e
+
+VERSION=v0.5.7
+TARBALL="https://github.com/ollama/ollama/releases/download/${VERSION}/ollama-linux-amd64.tgz"
+
+echo "I: installing Ollama ${VERSION}"
+
+if ! curl -fsSL --retry 3 --retry-delay 2 -o /tmp/ollama.tgz "$TARBALL"; then
+	# A build without network should say so rather than produce an image with
+	# a launcher that fails when somebody clicks it.
+	echo "W: could not download Ollama — it will be missing from this image" >&2
+	exit 0
+fi
+
+mkdir -p /tmp/ollama-unpack
+if ! tar -xzf /tmp/ollama.tgz -C /tmp/ollama-unpack; then
+	echo "W: the Ollama tarball did not unpack — leaving it out" >&2
+	rm -rf /tmp/ollama.tgz /tmp/ollama-unpack
+	exit 0
+fi
+rm -f /tmp/ollama.tgz
+
+install -Dm755 /tmp/ollama-unpack/bin/ollama /usr/local/bin/ollama
+
+# The runner libraries, minus the GPU vendor blobs.
+if [ -d /tmp/ollama-unpack/lib/ollama ]; then
+	mkdir -p /usr/local/lib/ollama
+	cp -a /tmp/ollama-unpack/lib/ollama/. /usr/local/lib/ollama/
+	rm -rf /usr/local/lib/ollama/cuda_v11 \
+	       /usr/local/lib/ollama/cuda_v12 \
+	       /usr/local/lib/ollama/cuda \
+	       /usr/local/lib/ollama/rocm
+	find /usr/local/lib/ollama -maxdepth 1 -name 'libcu*' -delete 2>/dev/null || true
+	find /usr/local/lib/ollama -maxdepth 1 -name 'librocm*' -delete 2>/dev/null || true
+	find /usr/local/lib/ollama -maxdepth 1 -name 'libhip*' -delete 2>/dev/null || true
+	echo "I: ollama runtime $(du -sh /usr/local/lib/ollama | cut -f1) after pruning GPU runners"
+fi
+rm -rf /tmp/ollama-unpack
+
+# Models live in the operator's home, so a persistence partition keeps them.
+# The default (/usr/share/ollama) is on the read-only squashfs, where a pull
+# fails with a permission error that names nothing useful.
+cat > /etc/profile.d/ollama.sh <<'PROFILE'
+# Ollama keeps its models here so that a persistence partition retains them;
+# the default location is on the live image's read-only squashfs.
+export OLLAMA_MODELS="${OLLAMA_MODELS:-$HOME/.ollama/models}"
+PROFILE
+chmod 0644 /etc/profile.d/ollama.sh
+
+# The server, started on demand rather than at boot: it idles at a few hundred
+# megabytes of RAM once a model is loaded, and most sessions never ask it
+# anything.
+cat > /etc/systemd/system/ollama.service <<'UNIT'
+[Unit]
+Description=Ollama local model server
+After=network-online.target
+
+[Service]
+Type=simple
+User=symbiote
+Environment=OLLAMA_MODELS=/home/symbiote/.ollama/models
+Environment=OLLAMA_HOST=127.0.0.1:11434
+ExecStart=/usr/local/bin/ollama serve
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+chmod 0644 /etc/systemd/system/ollama.service
+
+# Not enabled. Started by ollama-setup, or by hand, so a machine that never
+# asks for a model never pays for the daemon.
+
+# ── first run ──────────────────────────────────────────────────────────────
+# Everything the operator needs to go from "Ollama is installed" to "a model
+# answered me", in one command, with the sizes stated before anything is
+# downloaded. Left to `ollama run llama3.2` alone, the first thing that
+# happens on a live USB is a silent multi-gigabyte download onto a RAM disk.
+cat > /usr/local/bin/ollama-setup <<'SETUP'
+#!/bin/sh
+# Bring up the local model server and, if there is nothing to run, offer to
+# fetch something small enough to be worth fetching.
+set -e
+
+export OLLAMA_MODELS="${OLLAMA_MODELS:-$HOME/.ollama/models}"
+mkdir -p "$OLLAMA_MODELS"
+
+printf '\n  OLLAMA — local models, on this machine, offline once pulled\n\n'
+
+if ! pgrep -x ollama >/dev/null 2>&1; then
+	echo "  starting the model server…"
+	nohup ollama serve >/tmp/ollama-serve.log 2>&1 &
+	# The server needs a moment before the client can talk to it; without
+	# this the first command reports a connection refused that looks like a
+	# broken install.
+	i=0
+	while [ $i -lt 20 ]; do
+		if ollama list >/dev/null 2>&1; then break; fi
+		sleep 0.5
+		i=$((i + 1))
+	done
+fi
+
+if ! ollama list >/dev/null 2>&1; then
+	echo "  the model server did not start. Its log is /tmp/ollama-serve.log" >&2
+	exit 1
+fi
+
+if [ -n "$(ollama list 2>/dev/null | tail -n +2)" ]; then
+	echo "  models already on this machine:"
+	echo
+	ollama list
+	echo
+	echo "  run one with:  ollama run <name>"
+	exit 0
+fi
+
+cat <<'MENU'
+  No model is installed yet. Nothing was shipped in the image because the
+  smallest one worth using is about a gigabyte.
+
+  Persistence matters here: without a persistence partition a pulled model
+  lives in RAM and is gone on reboot. Settings says whether you have one.
+
+    1  qwen2.5:0.5b     ~400 MB   fits anywhere, weak but real
+    2  llama3.2:1b      ~1.3 GB   a good default on a laptop
+    3  llama3.2:3b      ~2.0 GB   noticeably better, wants 8 GB of RAM
+    4  qwen2.5-coder:1.5b ~1.0 GB code
+    q  nothing for now
+
+MENU
+
+printf '  pull which? [1-4/q] '
+read -r choice
+case "$choice" in
+	1) model=qwen2.5:0.5b ;;
+	2) model=llama3.2:1b ;;
+	3) model=llama3.2:3b ;;
+	4) model=qwen2.5-coder:1.5b ;;
+	*) echo "  nothing pulled."; exit 0 ;;
+esac
+
+echo
+echo "  pulling $model — this needs a network connection."
+ollama pull "$model"
+echo
+echo "  done. Talking to it now; Ctrl-D to leave."
+echo
+exec ollama run "$model"
+SETUP
+chmod 0755 /usr/local/bin/ollama-setup
+
+cat > /usr/share/applications/ollama.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Ollama
+GenericName=Local language models
+Comment=Run language models on this machine, offline, with no account
+Exec=foot -T Ollama ollama-setup
+Icon=utilities-terminal
+Terminal=false
+Categories=Utility;Science;
+DESKTOP
+
+echo "I: Ollama installed; models are pulled on first run by ollama-setup"

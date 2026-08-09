@@ -1,0 +1,71 @@
+# Check that every package the image asks for actually exists.
+#
+# live-build passes each non-comment line of a package list straight to apt.
+# A name that is wrong — renamed between releases, only ever in Kali, or simply
+# mistyped — does not fail early. It fails inside `lb build`, after debootstrap
+# has run, which is twenty-odd minutes into a build and a long way from the
+# line that caused it.
+#
+# This resolves the lists against the real trixie archive in about a minute.
+name: Packages
+
+on:
+  push:
+    paths:
+      - "distro/config/package-lists/**"
+      - ".github/workflows/packages.yml"
+  pull_request:
+    paths:
+      - "distro/config/package-lists/**"
+      - ".github/workflows/packages.yml"
+  workflow_dispatch:
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The same Debian the image is built from. Resolving against Ubuntu would
+    # answer a different question and quietly pass names trixie does not have.
+    container: debian:trixie
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the archive index
+        run: apt-get update
+
+      - name: Resolve every listed package
+        run: |
+          set -uo pipefail
+          missing=0
+          for list in distro/config/package-lists/*.list.chroot; do
+            echo "── $list"
+            # Same parse live-build does: skip blanks and whole-line comments.
+            # Trailing comments are NOT stripped by live-build either, so a
+            # line carrying one is itself an error worth catching here.
+            while IFS= read -r line; do
+              case "$line" in
+                ''|'#'*) continue ;;
+              esac
+              case "$line" in
+                *' '*|*'	'*)
+                  echo "   BAD   $line"
+                  echo "         (live-build passes the whole line to apt; comments must own their line)"
+                  missing=$((missing + 1))
+                  continue
+                  ;;
+              esac
+              if apt-cache show "$line" >/dev/null 2>&1; then
+                printf '   ok    %s\n' "$line"
+              else
+                printf '   MISSING %s\n' "$line"
+                missing=$((missing + 1))
+              fi
+            done < "$list"
+          done
+          echo
+          if [ "$missing" -gt 0 ]; then
+            echo "$missing package name(s) do not resolve in trixie."
+            exit 1
+          fi
+          echo "every package resolves."
