@@ -117,6 +117,15 @@ set(SYMBIOTE_QML
     qml/components/DesktopIcons.qml
     qml/components/Taskbar.qml
     qml/components/SettingsWindow.qml
+    qml/components/HudButton.qml
+    qml/components/HudSlider.qml
+    qml/components/HudToggle.qml
+    qml/components/HudDropdown.qml
+    qml/components/HudSegmented.qml
+    qml/components/HudField.qml
+    qml/components/SettingRow.qml
+    qml/components/SettingGroup.qml
+    qml/components/TraySheet.qml
     qml/components/NetworkPanel.qml
 )
 foreach(f IN LISTS SYMBIOTE_QML)

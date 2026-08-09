@@ -41,7 +41,138 @@ AppLauncher::AppLauncher(QObject *parent) : QObject(parent)
     };
 
     scanDesktopEntries();
+    scanCommandLineTools();
 }
+
+/* ── how the launcher decides what something is ────────────────────────────
+ *
+ * Two axes, and they answer two different questions.
+ *
+ * `kind` is "app" or "tool": is this something you use, or something you point
+ * at a target? A launcher that mixes a text editor in with a password cracker
+ * on one alphabetical wall makes both harder to find, which is why Kali splits
+ * its menu the same way.
+ *
+ * `category` is where a tool sits within that: what job it does, not what it is
+ * called. An operator looking for a way to see traffic on the wire does not
+ * know in advance whether this machine has tcpdump, tshark or both.
+ *
+ * The categories and their order are Kali's, because that vocabulary is the one
+ * anyone doing this work already has. The names are shortened — a sidebar has
+ * about eighteen characters, and "Information Gathering" is what the long form
+ * would be truncated to anyway.
+ */
+namespace {
+
+const char *const TOOL_CATEGORY_ORDER[] = {
+    "RECON",          // information gathering
+    "VULNERABILITY",  // vulnerability analysis
+    "WEB",            // web application analysis
+    "DATABASE",       // database assessment
+    "PASSWORDS",      // password attacks
+    "WIRELESS",       // wireless attacks
+    "EXPLOITATION",   // exploitation tools
+    "SNIFFING",       // sniffing and spoofing
+    "POST",           // post exploitation
+    "REVERSING",      // reverse engineering
+    "FORENSICS",      // forensics
+    "ANONYMITY",      // tunnels, VPNs, proxies
+    "DEFENSE",        // the local machine's own posture
+    "ASSISTANT",      // PentAI: reasons about the rest of this list
+    "OTHER",
+};
+
+bool contains(const QString &hay, std::initializer_list<const char *> needles)
+{
+    for (const char *n : needles)
+        if (hay.contains(QLatin1String(n)))
+            return true;
+    return false;
+}
+
+/* The security category a program belongs to, or an empty string when it is an
+   ordinary application. Matched on the binary name first, because that is the
+   one identifier that does not change between distributions. */
+QString toolCategory(const QString &bin, const QString &categories, const QString &name)
+{
+    const QString b = bin.toLower();
+    const QString c = categories.toLower();
+    const QString n = name.toLower();
+
+    if (contains(b, {"nmap", "zenmap", "masscan", "netdiscover", "whois", "dig",
+                     "host", "nslookup", "dnsenum", "dnsrecon", "fierce",
+                     "theharvester", "recon-ng", "amass", "arp-scan", "sublist3r",
+                     "traceroute", "nbtscan", "onesixtyone", "snmpwalk"})
+        || contains(n, {"port scan", "dns lookup", "network discovery"}))
+        return QStringLiteral("RECON");
+
+    if (contains(b, {"nikto", "openvas", "lynis", "nuclei", "wpscan", "legion",
+                     "searchsploit", "vulscan"})
+        || contains(n, {"vulnerability"}))
+        return QStringLiteral("VULNERABILITY");
+
+    if (contains(b, {"dirb", "gobuster", "ffuf", "feroxbuster", "wfuzz", "burp",
+                     "zaproxy", "whatweb", "wafw00f", "commix", "skipfish",
+                     "cadaver", "davtest"}))
+        return QStringLiteral("WEB");
+
+    if (contains(b, {"sqlmap", "sqlninja", "jsql", "mdb-", "sqlite3", "mysql",
+                     "psql", "sqlitebrowser"}))
+        return QStringLiteral("DATABASE");
+
+    if (contains(b, {"hydra", "john", "hashcat", "medusa", "ncrack", "crunch",
+                     "cewl", "hashid", "ophcrack", "chntpw", "patator",
+                     "hash-identifier", "rsmangler", "wordlists"}))
+        return QStringLiteral("PASSWORDS");
+
+    if (contains(b, {"aircrack", "airodump", "aireplay", "airmon", "airbase",
+                     "kismet", "reaver", "bully", "wifite", "fern", "mdk4",
+                     "hcxdumptool", "hcxtools", "bettercap", "pixiewps"}))
+        return QStringLiteral("WIRELESS");
+
+    if (contains(b, {"msfconsole", "msfvenom", "metasploit", "armitage",
+                     "beef", "exploitdb", "sqlbrute", "routersploit",
+                     "setoolkit", "social-engineer"}))
+        return QStringLiteral("EXPLOITATION");
+
+    if (contains(b, {"wireshark", "tshark", "tcpdump", "ettercap", "dsniff",
+                     "responder", "mitmproxy", "netsniff", "driftnet",
+                     "sslsplit", "sslstrip", "macchanger", "arpspoof"}))
+        return QStringLiteral("SNIFFING");
+
+    if (contains(b, {"mimikatz", "powersploit", "empire", "weevely", "chisel",
+                     "socat", "netcat", "nc", "ncat", "rlwrap", "pwncat"}))
+        return QStringLiteral("POST");
+
+    if (contains(b, {"ghidra", "radare2", "r2", "gdb", "objdump", "cutter",
+                     "hexedit", "ltrace", "strace", "edb", "jadx", "apktool",
+                     "binwalk", "hopper"}))
+        return QStringLiteral("REVERSING");
+
+    if (contains(b, {"autopsy", "sleuthkit", "volatility", "foremost", "scalpel",
+                     "testdisk", "photorec", "bulk_extractor", "dc3dd",
+                     "guymager", "exiftool", "steghide", "ddrescue"}))
+        return QStringLiteral("FORENSICS");
+
+    if (contains(b, {"openvpn", "wg", "wg-quick", "proxychains", "proxychains4",
+                     "tor", "torbrowser", "obfs4proxy", "sshuttle"}))
+        return QStringLiteral("ANONYMITY");
+
+    if (contains(b, {"nft", "iptables", "ufw", "gufw", "firewalld", "aa-status",
+                     "apparmor", "fail2ban", "clamav", "rkhunter", "chkrootkit",
+                     "cryptsetup", "lynis"}))
+        return QStringLiteral("DEFENSE");
+
+    /* A desktop entry that declares itself Security but names nothing we
+       recognise is still a tool — better in OTHER than filed as an ordinary
+       application, where nobody hunting for it would look. */
+    if (contains(c, {"security", "pentest", "forensic"}))
+        return QStringLiteral("OTHER");
+
+    return QString();
+}
+
+} // namespace
 
 /* Find a real icon file for an application.
  *
@@ -243,6 +374,11 @@ void AppLauncher::scanDesktopEntries()
             // Empty when the theme has nothing: QML falls back to the glyph.
             row["icon"] = findIcon(iconName);
             row["code"] = bin.left(8).toUpper();
+
+            const QString cat = toolCategory(bin, categories, name);
+            row["kind"] = cat.isEmpty() ? QStringLiteral("app") : QStringLiteral("tool");
+            row["category"] = cat;
+
             m_discovered.append(row);
         }
     }
@@ -251,6 +387,208 @@ void AppLauncher::scanDesktopEntries()
               [](const QVariant &a, const QVariant &b) {
         return a.toMap()["title"].toString() < b.toMap()["title"].toString();
     });
+}
+
+/* The tools you type.
+ *
+ * Nearly every program in security.list.chroot ships no desktop entry, because
+ * it has no window: nmap, sqlmap, hydra, aircrack-ng, tcpdump. Built purely
+ * from .desktop files the launcher showed a distribution advertised as being
+ * for security work with essentially no security tools in it — they were all
+ * installed, and all invisible.
+ *
+ * Each entry names the binary to look for, where it belongs, and a probe: the
+ * harmless invocation that prints its usage, so the terminal opens with the
+ * tool's own help rather than a bare prompt. Nothing here is run at scan time;
+ * the probe is the command the window starts with when the tile is clicked.
+ *
+ * Anything not installed is simply absent — the list is filtered against PATH,
+ * so an image built without a package does not advertise it.
+ */
+void AppLauncher::scanCommandLineTools()
+{
+    struct Tool {
+        const char *bin;
+        const char *title;
+        const char *category;
+        const char *glyph;
+        const char *probe;      // empty: just open a shell with the tool ready
+    };
+
+    static const Tool TOOLS[] = {
+        // ── recon ─────────────────────────────────────────────────────────
+        {"nmap",        "NMAP",         "RECON",         "radar",    "nmap --help"},
+        {"masscan",     "MASSCAN",      "RECON",         "radar",    "masscan --help 2>&1 | head -40"},
+        {"whois",       "WHOIS",        "RECON",         "radar",    "whois --help 2>&1 | head -20"},
+        {"dig",         "DIG",          "RECON",         "radar",    "dig -h 2>&1 | head -30"},
+        {"arp-scan",    "ARP SCAN",     "RECON",         "radar",    "arp-scan --help 2>&1 | head -30"},
+        {"traceroute",  "TRACEROUTE",   "RECON",         "radar",    "traceroute --help 2>&1 | head -25"},
+
+        // ── vulnerability ─────────────────────────────────────────────────
+        {"nikto",       "NIKTO",        "VULNERABILITY", "bug",      "nikto -Help 2>&1 | head -30"},
+        {"lynis",       "LYNIS",        "VULNERABILITY", "bug",      "lynis show help 2>&1 | head -30"},
+
+        // ── web ───────────────────────────────────────────────────────────
+        {"dirb",        "DIRB",         "WEB",           "bug",      "dirb 2>&1 | head -25"},
+        {"gobuster",    "GOBUSTER",     "WEB",           "bug",      "gobuster --help 2>&1 | head -30"},
+        {"whatweb",     "WHATWEB",      "WEB",           "bug",      "whatweb --help 2>&1 | head -30"},
+
+        // ── database ──────────────────────────────────────────────────────
+        {"sqlmap",      "SQLMAP",       "DATABASE",      "database", "sqlmap --help 2>&1 | head -40"},
+
+        // ── passwords ─────────────────────────────────────────────────────
+        {"hydra",       "HYDRA",        "PASSWORDS",     "key",      "hydra -h 2>&1 | head -40"},
+        {"john",        "JOHN",         "PASSWORDS",     "key",      "john --help 2>&1 | head -35"},
+        {"hashcat",     "HASHCAT",      "PASSWORDS",     "key",      "hashcat --help 2>&1 | head -40"},
+        {"crunch",      "CRUNCH",       "PASSWORDS",     "key",      "crunch 2>&1 | head -25"},
+
+        // ── wireless ──────────────────────────────────────────────────────
+        {"aircrack-ng", "AIRCRACK-NG",  "WIRELESS",      "wifi",     "aircrack-ng --help 2>&1 | head -35"},
+        {"airodump-ng", "AIRODUMP-NG",  "WIRELESS",      "wifi",     "airodump-ng --help 2>&1 | head -35"},
+        {"aireplay-ng", "AIREPLAY-NG",  "WIRELESS",      "wifi",     "aireplay-ng --help 2>&1 | head -35"},
+        {"airmon-ng",   "AIRMON-NG",    "WIRELESS",      "wifi",     "airmon-ng --help 2>&1 | head -25"},
+
+        // ── sniffing ──────────────────────────────────────────────────────
+        {"wireshark",   "WIRESHARK",    "SNIFFING",      "pulse",    ""},
+        {"tshark",      "TSHARK",       "SNIFFING",      "pulse",    "tshark --help 2>&1 | head -35"},
+        {"tcpdump",     "TCPDUMP",      "SNIFFING",      "pulse",    "tcpdump --help 2>&1 | head -30"},
+
+        // ── post exploitation ─────────────────────────────────────────────
+        {"ncat",        "NCAT",         "POST",          "terminal", "ncat --help 2>&1 | head -35"},
+        {"nc",          "NETCAT",       "POST",          "terminal", "nc -h 2>&1 | head -25"},
+        {"socat",       "SOCAT",        "POST",          "terminal", "socat -h 2>&1 | head -30"},
+
+        // ── anonymity ─────────────────────────────────────────────────────
+        {"openvpn",     "OPENVPN",      "ANONYMITY",     "shield",   "openvpn --help 2>&1 | head -30"},
+        {"wg",          "WIREGUARD",    "ANONYMITY",     "shield",   "wg --help 2>&1 | head -25"},
+        {"proxychains4","PROXYCHAINS",  "ANONYMITY",     "shield",   "proxychains4 2>&1 | head -20"},
+
+        // ── defense ───────────────────────────────────────────────────────
+        {"nft",         "NFTABLES",     "DEFENSE",       "shield",   "nft list ruleset 2>&1 | head -40"},
+        {"aa-status",   "APPARMOR",     "DEFENSE",       "shield",   "aa-status 2>&1 | head -30"},
+        {"cryptsetup",  "CRYPTSETUP",   "DEFENSE",       "shield",   "cryptsetup --help 2>&1 | head -30"},
+    };
+
+    /* Everything the curated list already covers, so a tool does not appear
+       twice under two names.
+     *
+     * The curated entries do not name their tool as the command — they run
+     * `foot -T "Network Scan" sh -c "nmap --help; …"` — so the binary has to be
+     * dug out of the arguments. Without this the launcher showed both NETWORK
+     * SCAN and NMAP, which are the same program with two labels. */
+    QSet<QString> curated;
+    for (auto it = m_catalog.constBegin(); it != m_catalog.constEnd(); ++it) {
+        QStringList words = it.value().args;
+        words.prepend(it.value().cmd);
+        for (const QString &arg : std::as_const(words)) {
+            const QStringList tokens = arg.split(QRegularExpression(QStringLiteral("[^A-Za-z0-9_.-]+")),
+                                                 Qt::SkipEmptyParts);
+            for (const QString &t : tokens)
+                curated.insert(t);
+        }
+    }
+
+    for (const Tool &t : TOOLS) {
+        const QString bin = QString::fromLatin1(t.bin);
+        if (QStandardPaths::findExecutable(bin).isEmpty())
+            continue;   // not in this image
+
+        QVariantMap row;
+        row["id"] = QStringLiteral("cli:") + bin;
+        row["title"] = QString::fromLatin1(t.title);
+        row["short"] = QString::fromLatin1(t.title);
+        row["glyph"] = QString::fromLatin1(t.glyph);
+        row["icon"] = QString();
+        row["code"] = bin.left(8).toUpper();
+        row["kind"] = QStringLiteral("tool");
+        row["category"] = QString::fromLatin1(t.category);
+        row["bin"] = bin;
+        row["probe"] = QString::fromLatin1(t.probe);
+        m_tools.append(row);
+    }
+
+    /* Wireshark and anything else with a real window is already in the
+       discovered list; it stays there and is dropped from here, so the same
+       program is not two tiles that behave differently. */
+    for (int i = m_tools.size() - 1; i >= 0; --i) {
+        const QString bin = m_tools.at(i).toMap().value("bin").toString();
+        bool duplicate = curated.contains(bin);
+        if (!duplicate) {
+            for (const QVariant &d : std::as_const(m_discovered)) {
+                const QString exec = d.toMap().value("exec").toString();
+                if (exec.section(QLatin1Char(' '), 0, 0) == bin) {
+                    duplicate = true;
+                    break;
+                }
+            }
+        }
+        if (duplicate)
+            m_tools.removeAt(i);
+    }
+
+    // The categories that are actually populated, in the order they read in.
+    QSet<QString> present;
+    for (const QVariant &t : std::as_const(m_tools))
+        present.insert(t.toMap().value("category").toString());
+    for (const QVariant &d : std::as_const(m_discovered)) {
+        const QVariantMap row = d.toMap();
+        if (row.value("kind").toString() == QLatin1String("tool"))
+            present.insert(row.value("category").toString());
+    }
+    for (const char *c : TOOL_CATEGORY_ORDER) {
+        const QString name = QString::fromLatin1(c);
+        if (present.contains(name))
+            m_toolCategories.append(name);
+    }
+}
+
+QStringList AppLauncher::categoryOrder() const
+{
+    QStringList out;
+    for (const char *c : TOOL_CATEGORY_ORDER)
+        out.append(QString::fromLatin1(c));
+    return out;
+}
+
+void AppLauncher::launchInTerminal(const QString &id, const QString &title,
+                                   const QString &probe)
+{
+    if (m_open.contains(id))
+        return;
+
+    /* The shell stays after the command exits. A tool that prints its usage
+       and vanishes is worse than useless: the window flashes and the operator
+       is left wondering whether anything ran at all. */
+    const QString script = probe.isEmpty()
+        ? QStringLiteral("exec ${SHELL:-sh}")
+        : QStringLiteral("%1; echo; exec ${SHELL:-sh}").arg(probe);
+
+    auto *p = new QProcess(this);
+    auto env = QProcessEnvironment::systemEnvironment();
+    env.insert("GDK_BACKEND", "wayland");
+    env.insert("QT_QPA_PLATFORM", "wayland");
+    p->setProcessEnvironment(env);
+    p->setProcessChannelMode(QProcess::SeparateChannels);
+
+    connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+            [this, id, p](int, QProcess::ExitStatus) {
+        m_open.remove(id);
+        m_starting.remove(id);
+        p->deleteLater();
+        emit openChanged();
+    });
+
+    p->start(QStringLiteral("foot"),
+             {QStringLiteral("-T"), title, QStringLiteral("sh"),
+              QStringLiteral("-c"), script});
+    m_open.insert(id, p);
+
+    m_starting.insert(id);
+    QTimer::singleShot(STARTING_GRACE_MS, this, [this, id] {
+        if (m_starting.remove(id))
+            emit openChanged();
+    });
+    emit openChanged();
 }
 
 void AppLauncher::launchCommand(const QString &id, const QString &exec)

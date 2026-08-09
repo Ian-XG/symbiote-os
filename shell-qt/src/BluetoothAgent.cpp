@@ -76,6 +76,7 @@ void BluetoothAgent::resolve(bool accept)
     if (!m_pending)
         return;
     m_pending = false;
+    m_pendingIsInput = false;
 
     QDBusConnection bus = QDBusConnection::systemBus();
     if (accept) {
@@ -84,6 +85,41 @@ void BluetoothAgent::resolve(bool accept)
         bus.send(m_pendingCall.createErrorReply(
             QStringLiteral("org.bluez.Error.Rejected"),
             QStringLiteral("rejected by the operator")));
+    }
+    emit requestCleared();
+}
+
+void BluetoothAgent::submitInput(const QString &text)
+{
+    if (!m_pending || !m_pendingIsInput)
+        return;
+
+    QDBusConnection bus = QDBusConnection::systemBus();
+    if (text.isEmpty()) {
+        m_pending = false;
+        m_pendingIsInput = false;
+        bus.send(m_pendingCall.createErrorReply(
+            QStringLiteral("org.bluez.Error.Rejected"),
+            QStringLiteral("no code supplied")));
+        emit requestCleared();
+        return;
+    }
+
+    if (m_pendingIsNumeric) {
+        bool ok = false;
+        const uint passkey = text.toUInt(&ok);
+        /* BlueZ takes a u here and rejects anything above six digits. Sending
+           a malformed reply would leave the pairing hanging until it timed
+           out, with nothing on screen to say why. */
+        if (!ok || text.length() > 6)
+            return;
+        m_pending = false;
+        m_pendingIsInput = false;
+        bus.send(m_pendingCall.createReply(QVariant::fromValue(passkey)));
+    } else {
+        m_pending = false;
+        m_pendingIsInput = false;
+        bus.send(m_pendingCall.createReply(QVariant::fromValue(text)));
     }
     emit requestCleared();
 }
@@ -98,6 +134,7 @@ void BluetoothAgent::Cancel()
 {
     // The other end gave up. Drop the request without answering it.
     m_pending = false;
+    m_pendingIsInput = false;
     emit requestCleared();
 }
 
@@ -138,22 +175,24 @@ void BluetoothAgent::DisplayPinCode(const QDBusObjectPath &device, const QString
     emit displayRequested(device.path(), pincode);
 }
 
+/* Legacy pairing: the device has no screen, and its PIN is printed on a label
+   or fixed in its firmware. The shell used to reject these outright, because
+   there was nowhere to type the code — which meant every older keyboard, car
+   stereo and set of speakers was simply unpairable. There is a field now. */
 QString BluetoothAgent::RequestPinCode(const QDBusObjectPath &device)
 {
-    Q_UNUSED(device)
-    /* Legacy pairing wants a PIN typed here. There is no field for it yet, and
-       inventing "0000" would silently fail on anything that uses a real one. */
-    sendErrorReply(QStringLiteral("org.bluez.Error.Rejected"),
-                   QStringLiteral("this device needs a PIN typed in, which the "
-                                  "shell cannot ask for yet"));
-    return QString();
+    holdForAnswer();
+    m_pendingIsInput = true;
+    m_pendingIsNumeric = false;
+    emit inputRequested(device.path(), false);
+    return QString();   // ignored: the reply is sent from submitInput()
 }
 
 uint BluetoothAgent::RequestPasskey(const QDBusObjectPath &device)
 {
-    Q_UNUSED(device)
-    sendErrorReply(QStringLiteral("org.bluez.Error.Rejected"),
-                   QStringLiteral("this device needs a passkey typed in, which the "
-                                  "shell cannot ask for yet"));
-    return 0;
+    holdForAnswer();
+    m_pendingIsInput = true;
+    m_pendingIsNumeric = true;
+    emit inputRequested(device.path(), true);
+    return 0;           // ignored: the reply is sent from submitInput()
 }

@@ -9,7 +9,8 @@ Item {
     id: root
     signal dismissed()
 
-    property real bottomInset: 0
+    property string edge: "bottom"
+    property real inset: 0
 
     // Click-away.
     MouseArea {
@@ -18,40 +19,12 @@ Item {
         onPressed: root.dismissed()
     }
 
-    Item {
-        id: sheet
-        width: 420
-        height: 380
-        anchors {
-            right: parent.right; rightMargin: 18
-            bottom: parent.bottom; bottomMargin: root.bottomInset + 8
-        }
-
-        // Swallow clicks so the click-away behind does not close it.
-        MouseArea { anchors.fill: parent }
-
-        // Rises from the bar rather than appearing.
-        transform: Translate {
-            y: root.visible ? 0 : 12
-            Behavior on y { NumberAnimation { duration: Theme.durMed
-                                              easing.type: Easing.OutCubic } }
-        }
-        opacity: root.visible ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
-
-        Rectangle {
-            anchors.fill: parent
-            // Fully opaque. At 96% the panel behind bled through the text,
-            // which is what made the Settings window unreadable on the laptop.
-            color: Theme.bgVoid
-        }
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.panelStrong
-            border.width: 1
-            border.color: Theme.hairline
-        }
-        Brackets { color: Theme.accent }
+    TraySheet {
+        width: 440
+        height: Math.min(440, root.height - root.inset - 40)
+        edge: root.edge
+        inset: root.inset
+        shown: root.visible
 
         Item {
             id: head
@@ -70,7 +43,7 @@ Item {
             Item {
                 width: 20; height: 20
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                HoverHandler { id: closeHover }
+                HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.dismissed() }
                 Text {
                     anchors.centerIn: parent

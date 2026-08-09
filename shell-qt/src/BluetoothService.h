@@ -38,10 +38,23 @@ class BluetoothService : public QObject
     Q_PROPERTY(QVariantList devices READ devices NOTIFY changed)
     Q_PROPERTY(QString lastError READ lastError NOTIFY changed)
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
+    /* Which device the outstanding call is for, and what it is doing.
+     *
+     * A single global `busy` flag disabled every button on every row at once,
+     * so while one headset was pairing nothing else could be touched — and a
+     * call that never came back left the whole panel dead. The panel now only
+     * greys the row that is actually working. */
+    Q_PROPERTY(QString busyPath READ busyPath NOTIFY busyChanged)
+    Q_PROPERTY(QString busyAction READ busyAction NOTIFY busyChanged)
     /* A pairing request waiting on the operator. Empty when there is none. */
     Q_PROPERTY(QString pendingPath READ pendingPath NOTIFY pendingChanged)
     Q_PROPERTY(QString pendingCode READ pendingCode NOTIFY pendingChanged)
     Q_PROPERTY(bool pendingNeedsAnswer READ pendingNeedsAnswer NOTIFY pendingChanged)
+    /* The device wants a code typed in rather than confirmed — the label on an
+       older keyboard or car stereo. `pendingInputNumeric` is true when BlueZ
+       will only take digits. */
+    Q_PROPERTY(bool pendingNeedsInput READ pendingNeedsInput NOTIFY pendingChanged)
+    Q_PROPERTY(bool pendingInputNumeric READ pendingInputNumeric NOTIFY pendingChanged)
 
 public:
     explicit BluetoothService(QObject *parent = nullptr);
@@ -53,20 +66,36 @@ public:
     QVariantList devices() const { return m_devices; }
     QString lastError() const { return m_lastError; }
     bool busy() const { return m_busy; }
+    QString busyPath() const { return m_busyPath; }
+    QString busyAction() const { return m_busyAction; }
     QString pendingPath() const { return m_pendingPath; }
     QString pendingCode() const { return m_pendingCode; }
     bool pendingNeedsAnswer() const { return m_pendingNeedsAnswer; }
+    bool pendingNeedsInput() const { return m_pendingNeedsInput; }
+    bool pendingInputNumeric() const { return m_pendingInputNumeric; }
 
     /** Answer an outstanding pairing confirmation. */
     Q_INVOKABLE void confirmPairing(bool accept);
+    /** Answer one that wants a code typed in. Empty text rejects it. */
+    Q_INVOKABLE void submitPairingCode(const QString &text);
 
     Q_INVOKABLE void setPowered(bool on);
     Q_INVOKABLE void startDiscovery();
     Q_INVOKABLE void stopDiscovery();
     /** Pair, trust, then connect — the order BlueZ needs for audio devices. */
     Q_INVOKABLE void pair(const QString &path);
+    /* One action for "use this device", whatever state it is in.
+     *
+     * The panel used to offer PAIR on a new device and CONNECT on a paired
+     * one, which meant a device found by a scan had to be paired, watched
+     * until the row changed, and then connected in a second click — and if
+     * the pair succeeded but the connect was never pressed, the headset sat
+     * there paired and silent. Nobody wants to pair a device; they want to use
+     * it. This pairs when it must, trusts, and connects. */
     Q_INVOKABLE void connectDevice(const QString &path);
     Q_INVOKABLE void disconnectDevice(const QString &path);
+    /** Mark a device as trusted, so it may reconnect without being authorised. */
+    Q_INVOKABLE void setTrusted(const QString &path, bool trusted);
     /** Forget: BlueZ drops the device and its keys from the adapter. */
     Q_INVOKABLE void forget(const QString &path);
 
@@ -92,13 +121,25 @@ private:
 
     bool setAdapterProp(const QString &prop, const QVariant &value);
     void callDevice(const QString &path, const QString &method, int timeoutMs);
-    void setBusy(bool b);
+    void setBusy(bool b, const QString &path = QString(),
+                 const QString &action = QString());
     void fail(const QString &why);
+    /** Is this device known to BlueZ as paired right now? */
+    bool isPaired(const QString &path) const;
+    /* Finish what connectDevice() started: trust, connect, report. Separate
+       because pairing arrives asynchronously and this is the continuation. */
+    void trustAndConnect(const QString &path);
+
+    /* BlueZ's error names are accurate and useless to read. This turns the
+       handful that actually happen into something that names the cause. */
+    static QString explain(const QString &name, const QString &message);
 
     bool m_present = false;
     bool m_powered = false;
     bool m_discovering = false;
     bool m_busy = false;
+    QString m_busyPath;
+    QString m_busyAction;
     QString m_adapterPath;
     QString m_adapterName;
     QString m_lastError;
@@ -108,6 +149,8 @@ private:
     QString m_pendingPath;
     QString m_pendingCode;
     bool m_pendingNeedsAnswer = false;
+    bool m_pendingNeedsInput = false;
+    bool m_pendingInputNumeric = false;
 
     QTimer m_timer;
 };

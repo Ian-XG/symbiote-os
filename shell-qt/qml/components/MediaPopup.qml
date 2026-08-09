@@ -2,13 +2,20 @@ import QtQuick
 import Symbiote
 
 /* Volume and brightness, as sliders you drag.
-   The desktop had neither, and the laptop's own media keys did nothing
-   because the compositor was not forwarding them. */
+ *
+ * There was no mute button. Muting was done by clicking the word VOLUME — an
+ * undiscoverable gesture on a label that looks like a label, with nothing
+ * anywhere saying it was possible. The tray icon changed colour to show the
+ * state, which is not a state anyone can read: red-on-dark and green-on-dark
+ * at 16px are the same icon to most people at a glance, and identical to
+ * anyone colour-blind.
+ */
 Item {
     id: root
     signal dismissed()
 
-    property real bottomInset: 0
+    property string edge: "bottom"
+    property real inset: 0
 
     MouseArea {
         anchors.fill: parent
@@ -16,45 +23,43 @@ Item {
         onPressed: root.dismissed()
     }
 
-    Item {
-        id: sheet
-        width: 320
-        height: col.height + 32
-        anchors {
-            right: parent.right; rightMargin: 18
-            bottom: parent.bottom; bottomMargin: root.bottomInset + 8
-        }
-
-        MouseArea { anchors.fill: parent }
-
-        Rectangle { anchors.fill: parent; color: Theme.bgVoid }
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.panelStrong
-            border.width: 1
-            border.color: Theme.hairline
-        }
-        Brackets { color: Theme.accent }
+    TraySheet {
+        width: 340
+        height: col.implicitHeight + 34
+        edge: root.edge
+        inset: root.inset
+        shown: root.visible
 
         Column {
             id: col
             anchors { left: parent.left; right: parent.right; top: parent.top
-                      leftMargin: 16; rightMargin: 16; topMargin: 16 }
-            spacing: 16
+                      leftMargin: 17; rightMargin: 17; topMargin: 17 }
+            spacing: 18
 
-            Slider {
+            HudSlider {
                 width: parent.width
                 label: "VOLUME"
                 value: Media.volume
-                enabled: Media.audioAvailable
                 muted: Media.muted
+                enabled: Media.audioAvailable
                 absent: !Media.audioAvailable
                 absentText: "no audio device"
                 onMoved: function (v) { Media.setVolume(v) }
-                onToggled: Media.toggleMute()
+
+                /* The mute button, sitting in the slider's own label row where
+                   the eye already is. Says which state it will put you in, not
+                   which state you are in — a button labelled MUTE that means
+                   "currently muted" is the classic way to make a control
+                   unreadable. */
+                HudButton {
+                    text: Media.muted ? "UNMUTE" : "MUTE"
+                    danger: Media.muted
+                    enabled: Media.audioAvailable
+                    onClicked: Media.setMuted(!Media.muted)
+                }
             }
 
-            Slider {
+            HudSlider {
                 width: parent.width
                 label: "BRIGHTNESS"
                 value: Media.brightness
@@ -65,92 +70,6 @@ Item {
                 minimum: 5
                 onMoved: function (v) { Media.setBrightness(v) }
             }
-        }
-    }
-
-    /* A local slider rather than QtQuick.Controls: the shell would otherwise
-       pull in a whole control set and its styling for two of these. */
-    component Slider: Item {
-        id: sl
-        property string label: ""
-        property int value: 0
-        property int minimum: 0
-        property bool enabled: true
-        property bool muted: false
-        property bool absent: false
-        property string absentText: ""
-        signal moved(int v)
-        signal toggled()
-
-        height: 46
-
-        Text {
-            id: slLabel
-            text: sl.label
-            color: sl.absent ? Theme.textMuted : Theme.accent
-            font.family: Theme.mono
-            font.pixelSize: Theme.size2xs
-            font.letterSpacing: Theme.trackWider
-        }
-
-        Text {
-            anchors.right: parent.right
-            text: sl.absent ? sl.absentText
-                : sl.muted ? "MUTED" : sl.value + "%"
-            color: sl.muted ? Theme.alert
-                 : sl.absent ? Theme.textMuted : Theme.textBody
-            font.family: Theme.mono
-            font.pixelSize: Theme.size2xs
-        }
-
-        Item {
-            id: track
-            anchors { left: parent.left; right: parent.right; top: slLabel.bottom
-                      topMargin: 12 }
-            height: 18
-
-            Rectangle {
-                anchors { left: parent.left; right: parent.right
-                          verticalCenter: parent.verticalCenter }
-                height: 3
-                color: Theme.line
-
-                Rectangle {
-                    height: parent.height
-                    width: parent.width * Math.max(0, Math.min(100, sl.value)) / 100
-                    color: sl.absent ? Theme.line
-                         : sl.muted ? Theme.alert : Theme.accent
-                    Behavior on width { NumberAnimation { duration: Theme.durFast } }
-                }
-            }
-
-            // The handle, so there is something to aim at.
-            Rectangle {
-                visible: !sl.absent
-                width: 3; height: 14
-                anchors.verticalCenter: parent.verticalCenter
-                x: (track.width - width) * Math.max(0, Math.min(100, sl.value)) / 100
-                color: sl.muted ? Theme.alert : Theme.accent
-                Behavior on x { NumberAnimation { duration: Theme.durFast } }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                enabled: sl.enabled && !sl.absent
-                // Dragging and clicking are the same gesture here.
-                onPositionChanged: if (pressed) commit(mouse.x)
-                onPressed: commit(mouse.x)
-                function commit(x) {
-                    var v = Math.round(x / track.width * 100)
-                    sl.moved(Math.max(sl.minimum, Math.min(100, v)))
-                }
-            }
-        }
-
-        // Clicking the label mutes, which is where people click.
-        TapHandler {
-            enabled: sl.enabled && !sl.absent && sl.label === "VOLUME"
-            onTapped: sl.toggled()
         }
     }
 }

@@ -43,12 +43,42 @@ public:
        is on the machine is lying about what the machine has. */
     Q_PROPERTY(QVariantList discovered READ discovered CONSTANT)
     QVariantList discovered() const { return m_discovered; }
+
+    /* Command-line security tools that ship no desktop entry.
+     *
+     * Almost none of them do. nmap, sqlmap, hydra, aircrack-ng and the rest
+     * are programs you type, so a launcher built purely from .desktop files
+     * shows an image advertised as a security distribution with almost no
+     * security tools in it. These are looked up on PATH and opened in a
+     * terminal that stays after the command exits. */
+    Q_PROPERTY(QVariantList tools READ tools CONSTANT)
+    QVariantList tools() const { return m_tools; }
+
+    /* The tool categories that actually have something in them, in the order
+       they should be listed. Kali groups its menu this way and the shape is
+       worth borrowing: an operator looks for "something that scans a network",
+       not for a program whose name they already know. */
+    Q_PROPERTY(QStringList toolCategories READ toolCategories CONSTANT)
+    QStringList toolCategories() const { return m_toolCategories; }
+
+    /* Every category, in order, whether or not this image has anything in it.
+       The launcher merges the discovered tools with the curated ones, which
+       live in QML, so it needs the ordering as well as the subset C++ can
+       see. */
+    Q_PROPERTY(QStringList categoryOrder READ categoryOrder CONSTANT)
+    QStringList categoryOrder() const;
     /* Resolve an icon name from a desktop entry to a file on disk. Empty when
        nothing matches, which is the signal to fall back to a drawn glyph. */
     Q_INVOKABLE QString findIcon(const QString &name) const;
 
     /** Launch a discovered entry by its Exec line. */
     Q_INVOKABLE void launchCommand(const QString &id, const QString &exec);
+
+    /* Open a command-line tool in a terminal that stays open afterwards.
+       `probe` is the harmless invocation that prints its usage, so the window
+       has something in it rather than a bare prompt. */
+    Q_INVOKABLE void launchInTerminal(const QString &id, const QString &title,
+                                      const QString &probe);
 
 
     /* Errors are read-only to QML deliberately — nothing outside should be
@@ -67,7 +97,10 @@ private:
     QHash<QString, QProcess *> m_open;
     QString m_lastError;
     QVariantList m_discovered;
+    QVariantList m_tools;
+    QStringList m_toolCategories;
     QSet<QString> m_starting;
 
     void scanDesktopEntries();
+    void scanCommandLineTools();
 };

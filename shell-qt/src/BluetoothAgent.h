@@ -38,12 +38,19 @@ public:
     /** Answer whatever request is outstanding. */
     void resolve(bool accept);
 
+    /* Answer a request that wants characters rather than a yes: the PIN or
+       passkey printed on the back of an older device. Empty text rejects. */
+    void submitInput(const QString &text);
+
 signals:
     /* Something needs the operator. `code` is the passkey to compare, or empty
        when the device only wants a yes. */
     void confirmationRequested(const QString &devicePath, const QString &code);
     /* A code to read off the screen and type into the other device. */
     void displayRequested(const QString &devicePath, const QString &code);
+    /* The device wants a PIN or a passkey typed in here. `numeric` is true for
+       a passkey, which BlueZ requires to be a number of at most six digits. */
+    void inputRequested(const QString &devicePath, bool numeric);
     void requestCleared();
     void registeredChanged();
 
@@ -66,5 +73,10 @@ private:
 
     bool m_registered = false;
     bool m_pending = false;
+    /* True when the held call must be answered with text rather than with a
+       bare yes — the reply signature differs, and sending the wrong one leaves
+       BlueZ waiting until it times out. */
+    bool m_pendingIsInput = false;
+    bool m_pendingIsNumeric = false;
     QDBusMessage m_pendingCall;
 };
