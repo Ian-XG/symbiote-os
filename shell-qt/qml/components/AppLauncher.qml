@@ -173,65 +173,38 @@ Item {
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18 }
             height: 62
 
+            /* Two tabs, written out rather than repeated over a model.
+               The rule below has to know where each one is, and reaching for
+               a Repeater's delegates through the parent's `children` list
+               depends on where the Repeater itself sits in that list — which
+               is exactly the kind of thing that is right until somebody adds
+               a sibling. Two named items cannot go wrong. */
             Row {
                 id: modeTabs
                 spacing: 0
 
-                Repeater {
-                    model: [{ v: "apps", t: "APPLICATIONS" }, { v: "tools", t: "TOOLS" }]
-
-                    delegate: Item {
-                        id: tab
-                        required property var modelData
-                        readonly property bool on: tab.modelData.v === root.mode
-
-                        width: tabLabel.implicitWidth + countLabel.implicitWidth + 32
-                        height: 24
-
-                        HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: root.mode = tab.modelData.v }
-
-                        Row {
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 7
-                            Text {
-                                id: tabLabel
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: tab.modelData.t
-                                color: tab.on ? Theme.accent
-                                     : tabHover.hovered ? Theme.textBody : Theme.textMuted
-                                font.family: Theme.mono
-                                font.pixelSize: Theme.sizeXs
-                                font.letterSpacing: Theme.trackWider
-                                Behavior on color { ColorAnimation { duration: Prefs.dur(Theme.durFast) } }
-                            }
-                            Text {
-                                id: countLabel
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: tab.modelData.v === "tools" ? root.toolCount : root.appCount
-                                color: Theme.textMuted
-                                font.family: Theme.mono
-                                font.pixelSize: Theme.size2xs
-                            }
-                        }
-                    }
+                ModeTab {
+                    id: appsTab
+                    value: "apps"
+                    label: "APPLICATIONS"
+                    count: root.appCount
+                }
+                ModeTab {
+                    id: toolsTab
+                    value: "tools"
+                    label: "TOOLS"
+                    count: root.toolCount
                 }
             }
 
             /* One rule that slides between the two tabs. Two rules that each
                fade would say "something changed"; this says which way. */
             Rectangle {
-                id: tabRule
                 y: 24
-                width: root.mode === "tools" ? toolsTabWidth : appsTabWidth
-                x: root.mode === "tools" ? appsTabWidth : 0
+                x: root.mode === "tools" ? toolsTab.x : appsTab.x
+                width: root.mode === "tools" ? toolsTab.width : appsTab.width
                 height: 2
                 color: Theme.accent
-
-                readonly property real appsTabWidth: modeTabs.children.length > 0
-                    ? modeTabs.children[0].width : 120
-                readonly property real toolsTabWidth: modeTabs.children.length > 1
-                    ? modeTabs.children[1].width : 90
 
                 Behavior on x { NumberAnimation { duration: Prefs.dur(Theme.durMed)
                                                   easing.type: Theme.easeOut } }
@@ -470,6 +443,44 @@ Item {
             font.family: Theme.mono
             font.pixelSize: Theme.size2xs
             font.letterSpacing: Theme.trackWide
+        }
+    }
+
+    component ModeTab: Item {
+        id: tab
+        property string value: ""
+        property string label: ""
+        property int count: 0
+
+        readonly property bool on: tab.value === root.mode
+
+        width: tabRow.implicitWidth + 32
+        height: 24
+
+        HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: root.mode = tab.value }
+
+        Row {
+            id: tabRow
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 7
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: tab.label
+                color: tab.on ? Theme.accent
+                     : tabHover.hovered ? Theme.textBody : Theme.textMuted
+                font.family: Theme.mono
+                font.pixelSize: Theme.sizeXs
+                font.letterSpacing: Theme.trackWider
+                Behavior on color { ColorAnimation { duration: Prefs.dur(Theme.durFast) } }
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: tab.count
+                color: Theme.textMuted
+                font.family: Theme.mono
+                font.pixelSize: Theme.size2xs
+            }
         }
     }
 
