@@ -131,6 +131,15 @@ make vm-run       # boot the ISO in VirtualBox
 ISO and booting a VM — 25 minutes to discover a hologram was invisible. It
 renders the same scene graph offscreen in about three.
 
+GitHub builds both. `.github/workflows/shell.yml` compiles the shell, confirms
+the QML loads and renders the screenshots on every push that touches
+`shell-qt/`; `.github/workflows/iso.yml` builds the ISO on a tag, or on demand
+from the Actions tab, and attaches it to a draft release with its `SHA256SUMS`.
+A release is something people download and trust, so it waits for a human to
+publish it. Before this, the only way to produce an image was `make iso` on
+somebody's laptop, which meant the ISO on the releases page could be several
+commits behind the source with no way to tell.
+
 ```sh
 QTSCALE=2 SIZE=1440x900 make qt-shot   # as it looks on a HiDPI panel
 OPEN=settings make qt-shot             # with a panel open

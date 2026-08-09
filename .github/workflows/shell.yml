@@ -1,0 +1,81 @@
+# Compile the shell and confirm the QML actually loads.
+#
+# The same gate as `make qt-check`, and it exists for the same reason: a QML
+# typo costs nothing to make and does not fail the build — it fails at runtime,
+# on a machine that has booted an ISO, with a blank screen. Three minutes here
+# is cheaper than twenty-five minutes and a USB stick.
+name: Shell
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "shell-qt/**"
+      - "Dockerfile.build"
+      - ".github/workflows/shell.yml"
+  pull_request:
+    paths:
+      - "shell-qt/**"
+      - "Dockerfile.build"
+      - ".github/workflows/shell.yml"
+  workflow_dispatch:
+
+jobs:
+  qt-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Debian trixie, which is what the image is built on, so the Qt here is
+      # the Qt the shell will actually run against.
+      - name: Build the build host
+        run: docker build -f Dockerfile.build -t symbiote-build .
+
+      # `-e` is not decoration. Without it a failed compile still runs to the
+      # end of the script and prints OK with an empty size, which is the worst
+      # possible outcome: a check that reports success for a build that did not
+      # happen.
+      - name: Compile, and load the QML
+        run: |
+          docker run --rm -v "$PWD":/build -w /build symbiote-build \
+            bash -euo pipefail -c '
+              cmake -S /build/shell-qt -B /tmp/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+              cmake --build /tmp/build
+              echo "--- compiled; now checking the QML actually resolves ---"
+              QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+                timeout 20 /tmp/build/symbiote-shell-qt > /tmp/qtrun.log 2>&1 || true
+              cat /tmp/qtrun.log
+              if grep -qE "failed to load|no type named|is not a type|Cannot assign|Invalid property|unavailable|ReferenceError|is not defined|Cannot open" /tmp/qtrun.log; then
+                echo "QT SHELL: QML DID NOT LOAD"; exit 1
+              fi
+              echo "QT SHELL OK: $(du -h /tmp/build/symbiote-shell-qt | cut -f1)"'
+
+      # The screenshots in the README are generated, not drawn. Rendering them
+      # on every change is how a layout bug gets noticed by a person looking at
+      # a picture rather than by somebody booting a VM.
+      - name: Render the shell
+        run: |
+          docker run --rm -v "$PWD":/build -w /build symbiote-build \
+            bash -euo pipefail -c '
+              cmake -S /build/shell-qt -B /tmp/build -G Ninja -DCMAKE_BUILD_TYPE=Release >/dev/null
+              cmake --build /tmp/build >/dev/null
+              mkdir -p /build/shots
+              for open in "" launcher launcher:tools settings settings:TASKBAR; do
+                name="${open:-desktop}"
+                name="${name//:/-}"
+                QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software \
+                SYMBIOTE_SCALE=1 SYMBIOTE_SHOT="/build/shots/$name.png" \
+                SYMBIOTE_SHOT_SIZE=1920x1080 SYMBIOTE_OPEN="$open" \
+                SYMBIOTE_SHOT_DELAY=2500 \
+                  timeout 60 /tmp/build/symbiote-shell-qt >/dev/null 2>&1 || true
+                test -f "/build/shots/$name.png" || { echo "no shot for ${open:-desktop}"; exit 1; }
+              done
+              ls -la /build/shots'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shell-screenshots
+          path: shots/
+          retention-days: 14
