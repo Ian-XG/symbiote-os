@@ -31,8 +31,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read the archive index
-        run: apt-get update
+      # The check has to see the same archive the build does, or it lies in
+      # both directions. The debian:trixie image enables only main (and
+      # non-free-firmware), so a package in contrib or non-free reads as missing
+      # even though live-build — which enables all four areas in auto/config —
+      # installs it fine. The firmware-* packages are exactly this case. Match
+      # auto/config's --archive-areas here so the simulation is honest.
+      - name: Enable the same archive areas as the build, and read the index
+        run: |
+          rm -f /etc/apt/sources.list.d/debian.sources
+          cat > /etc/apt/sources.list <<'EOF'
+          deb http://deb.debian.org/debian trixie main contrib non-free non-free-firmware
+          deb http://deb.debian.org/debian trixie-updates main contrib non-free non-free-firmware
+          deb http://deb.debian.org/debian-security trixie-security main contrib non-free non-free-firmware
+          EOF
+          apt-get update
 
       - name: Resolve every listed package
         run: |
