@@ -12,7 +12,6 @@ hydra
 john
 hashcat
 sqlmap
-nikto
 dirb
 gobuster
 masscan
@@ -65,9 +64,10 @@ curl
 ca-certificates
 
 # ── information gathering ───────────────────────────────────────────────────
+# theHarvester is not in trixie — it lives in Kali, and pip/pipx is the way to
+# get it here. Left out rather than named, so the build does not fail for it.
 dnsrecon
 dnsenum
-theharvester
 netdiscover
 fping
 sslscan
@@ -77,11 +77,13 @@ nbtscan
 onesixtyone
 
 # ── vulnerability analysis ──────────────────────────────────────────────────
+# nikto was removed from Debian and is not in trixie either; it is a Perl
+# script and `git clone` is the usual way to run it. See README-tools.md.
 lynis
 wapiti
 
 # ── web application ─────────────────────────────────────────────────────────
-gobuster
+# gobuster is already listed above; not repeated here.
 ffuf
 wfuzz
 
@@ -101,11 +103,12 @@ macchanger
 iw
 
 # ── sniffing and spoofing ───────────────────────────────────────────────────
+# Responder is not packaged in Debian; it is a Kali/GitHub tool. Left out
+# rather than named so the build does not fail for it.
 ettercap-text-only
 dsniff
 bettercap
 mitmproxy
-responder
 netsniff-ng
 
 # ── reverse engineering ─────────────────────────────────────────────────────

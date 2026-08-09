@@ -28,7 +28,9 @@ wireplumber
 network-manager
 wpasupplicant
 bluez
-bluez-firmware
+# bluez-firmware was dropped in trixie — the Bluetooth adapter firmware it
+# carried is now shipped by the firmware-* packages below, so naming it here
+# fails the build for blobs the image already has.
 upower
 polkitd
 dbus-user-session
@@ -55,16 +57,22 @@ sudo
 # HD 630 and a Radeon Pro, and the display can be wired to either. Missing
 # firmware for the one in use means no working GL, which is one of the ways
 # the shell ends up on a blank screen.
+#
+# Intel graphics firmware moved into firmware-misc-nonfree in trixie —
+# firmware-intel-graphics is not a package there — so that one line is gone and
+# the coverage stays, since firmware-misc-nonfree is right below it.
 firmware-amd-graphics
-firmware-intel-graphics
 firmware-misc-nonfree
 
-# Firmware for real hardware. Wifi and bluetooth chips do not come up without it.
+# Firmware for real hardware. Wifi and bluetooth chips do not come up without
+# it. firmware-linux is the metapackage that pulls the non-free blobs;
+# firmware-brcm80211 (Broadcom wifi, the Mac's chip) was folded into it in
+# trixie and is no longer a package of its own, so naming it would fail the
+# build while firmware-linux already covers it.
 firmware-linux
 firmware-iwlwifi
 firmware-realtek
 firmware-atheros
-firmware-brcm80211
 
 # Electron runtime dependencies
 libnss3
