@@ -55,7 +55,15 @@ jobs:
                   continue
                   ;;
               esac
-              if apt-cache show "$line" >/dev/null 2>&1; then
+              # apt-get install -s, not apt-cache show. `show` prints for a
+              # package that is merely *referred to* by another — radare2,
+              # wapiti and mitmproxy all "showed" yet had no installation
+              # candidate in trixie, so the check passed and lb build failed on
+              # them anyway. A simulated install is exactly the resolution
+              # live-build does: it fails on a package with no candidate, and on
+              # a virtual name with more than one provider, which `show` also
+              # misses.
+              if apt-get install -s --no-install-recommends "$line" >/dev/null 2>&1; then
                 printf '   ok    %s\n' "$line"
               else
                 printf '   MISSING %s\n' "$line"

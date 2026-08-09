@@ -77,10 +77,10 @@ nbtscan
 onesixtyone
 
 # ── vulnerability analysis ──────────────────────────────────────────────────
-# nikto was removed from Debian and is not in trixie either; it is a Perl
-# script and `git clone` is the usual way to run it. See README-tools.md.
+# nikto and wapiti are both absent from trixie — nikto was removed outright,
+# wapiti has no installation candidate. Both are in README-tools.md. lynis is
+# the system auditor that is packaged and installable.
 lynis
-wapiti
 
 # ── web application ─────────────────────────────────────────────────────────
 # gobuster is already listed above; not repeated here.
@@ -105,14 +105,17 @@ iw
 # ── sniffing and spoofing ───────────────────────────────────────────────────
 # Responder is not packaged in Debian; it is a Kali/GitHub tool. Left out
 # rather than named so the build does not fail for it.
+# mitmproxy has no installation candidate in trixie; `pipx install mitmproxy`
+# is the way to get it. bettercap and dsniff cover the interception need here.
 ettercap-text-only
 dsniff
 bettercap
-mitmproxy
 netsniff-ng
 
 # ── reverse engineering ─────────────────────────────────────────────────────
-radare2
+# rizin is the maintained fork of radare2 and is what trixie ships; radare2
+# itself was dropped from the release.
+rizin
 gdb
 ltrace
 strace
