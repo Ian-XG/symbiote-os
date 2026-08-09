@@ -413,60 +413,117 @@ void AppLauncher::scanCommandLineTools()
         const char *category;
         const char *glyph;
         const char *probe;      // empty: just open a shell with the tool ready
+        /* The icon this tool ships, when it ships one. Wireshark, Ghidra and
+           Zenmap install a real icon into the theme and are recognised by it;
+           the shell's drawn glyphs are for its own furniture and for the
+           hundred tools that have no logo at all. Empty means "look under the
+           binary's own name", which is where most of them put it. */
+        const char *iconName;
     };
 
     static const Tool TOOLS[] = {
         // ── recon ─────────────────────────────────────────────────────────
-        {"nmap",        "NMAP",         "RECON",         "radar",    "nmap --help"},
-        {"masscan",     "MASSCAN",      "RECON",         "radar",    "masscan --help 2>&1 | head -40"},
-        {"whois",       "WHOIS",        "RECON",         "radar",    "whois --help 2>&1 | head -20"},
-        {"dig",         "DIG",          "RECON",         "radar",    "dig -h 2>&1 | head -30"},
-        {"arp-scan",    "ARP SCAN",     "RECON",         "radar",    "arp-scan --help 2>&1 | head -30"},
-        {"traceroute",  "TRACEROUTE",   "RECON",         "radar",    "traceroute --help 2>&1 | head -25"},
+        {"nmap",        "NMAP",         "RECON",         "radar",    "nmap --help", "nmap"},
+        {"masscan",     "MASSCAN",      "RECON",         "radar",    "masscan --help 2>&1 | head -40", ""},
+        {"whois",       "WHOIS",        "RECON",         "radar",    "whois --help 2>&1 | head -20", ""},
+        {"dig",         "DIG",          "RECON",         "radar",    "dig -h 2>&1 | head -30", ""},
+        {"host",        "HOST",         "RECON",         "radar",    "host 2>&1 | head -20", ""},
+        {"dnsrecon",    "DNSRECON",     "RECON",         "radar",    "dnsrecon --help 2>&1 | head -30", ""},
+        {"dnsenum",     "DNSENUM",      "RECON",         "radar",    "dnsenum --help 2>&1 | head -30", ""},
+        {"theHarvester","THEHARVESTER", "RECON",         "radar",    "theHarvester --help 2>&1 | head -35", ""},
+        {"netdiscover", "NETDISCOVER",  "RECON",         "radar",    "netdiscover -h 2>&1 | head -25", ""},
+        {"arp-scan",    "ARP SCAN",     "RECON",         "radar",    "arp-scan --help 2>&1 | head -30", ""},
+        {"fping",       "FPING",        "RECON",         "radar",    "fping -h 2>&1 | head -30", ""},
+        {"traceroute",  "TRACEROUTE",   "RECON",         "radar",    "traceroute --help 2>&1 | head -25", ""},
+        {"nbtscan",     "NBTSCAN",      "RECON",         "radar",    "nbtscan -h 2>&1 | head -25", ""},
+        {"smbclient",   "SMBCLIENT",    "RECON",         "radar",    "smbclient --help 2>&1 | head -30", ""},
 
         // ── vulnerability ─────────────────────────────────────────────────
-        {"nikto",       "NIKTO",        "VULNERABILITY", "bug",      "nikto -Help 2>&1 | head -30"},
-        {"lynis",       "LYNIS",        "VULNERABILITY", "bug",      "lynis show help 2>&1 | head -30"},
+        {"nikto",       "NIKTO",        "VULNERABILITY", "bug",      "nikto -Help 2>&1 | head -30", ""},
+        {"wapiti",      "WAPITI",       "VULNERABILITY", "bug",      "wapiti --help 2>&1 | head -30", ""},
+        {"sslscan",     "SSLSCAN",      "VULNERABILITY", "bug",      "sslscan --help 2>&1 | head -30", ""},
+        {"lynis",       "LYNIS",        "VULNERABILITY", "bug",      "lynis show help 2>&1 | head -30", ""},
 
         // ── web ───────────────────────────────────────────────────────────
-        {"dirb",        "DIRB",         "WEB",           "bug",      "dirb 2>&1 | head -25"},
-        {"gobuster",    "GOBUSTER",     "WEB",           "bug",      "gobuster --help 2>&1 | head -30"},
-        {"whatweb",     "WHATWEB",      "WEB",           "bug",      "whatweb --help 2>&1 | head -30"},
+        {"dirb",        "DIRB",         "WEB",           "bug",      "dirb 2>&1 | head -25", ""},
+        {"gobuster",    "GOBUSTER",     "WEB",           "bug",      "gobuster --help 2>&1 | head -30", ""},
+        {"ffuf",        "FFUF",         "WEB",           "bug",      "ffuf -h 2>&1 | head -40", ""},
+        {"wfuzz",       "WFUZZ",        "WEB",           "bug",      "wfuzz --help 2>&1 | head -35", ""},
+        {"whatweb",     "WHATWEB",      "WEB",           "bug",      "whatweb --help 2>&1 | head -30", ""},
 
         // ── database ──────────────────────────────────────────────────────
-        {"sqlmap",      "SQLMAP",       "DATABASE",      "database", "sqlmap --help 2>&1 | head -40"},
+        {"sqlmap",      "SQLMAP",       "DATABASE",      "database", "sqlmap --help 2>&1 | head -40", ""},
 
         // ── passwords ─────────────────────────────────────────────────────
-        {"hydra",       "HYDRA",        "PASSWORDS",     "key",      "hydra -h 2>&1 | head -40"},
-        {"john",        "JOHN",         "PASSWORDS",     "key",      "john --help 2>&1 | head -35"},
-        {"hashcat",     "HASHCAT",      "PASSWORDS",     "key",      "hashcat --help 2>&1 | head -40"},
-        {"crunch",      "CRUNCH",       "PASSWORDS",     "key",      "crunch 2>&1 | head -25"},
+        {"hydra",       "HYDRA",        "PASSWORDS",     "key",      "hydra -h 2>&1 | head -40", ""},
+        {"john",        "JOHN",         "PASSWORDS",     "key",      "john --help 2>&1 | head -35", ""},
+        {"hashcat",     "HASHCAT",      "PASSWORDS",     "key",      "hashcat --help 2>&1 | head -40", "hashcat"},
+        {"medusa",      "MEDUSA",       "PASSWORDS",     "key",      "medusa -h 2>&1 | head -35", ""},
+        {"ncrack",      "NCRACK",       "PASSWORDS",     "key",      "ncrack --help 2>&1 | head -30", ""},
+        {"crunch",      "CRUNCH",       "PASSWORDS",     "key",      "crunch 2>&1 | head -25", ""},
+        {"cewl",        "CEWL",         "PASSWORDS",     "key",      "cewl --help 2>&1 | head -30", ""},
 
         // ── wireless ──────────────────────────────────────────────────────
-        {"aircrack-ng", "AIRCRACK-NG",  "WIRELESS",      "wifi",     "aircrack-ng --help 2>&1 | head -35"},
-        {"airodump-ng", "AIRODUMP-NG",  "WIRELESS",      "wifi",     "airodump-ng --help 2>&1 | head -35"},
-        {"aireplay-ng", "AIREPLAY-NG",  "WIRELESS",      "wifi",     "aireplay-ng --help 2>&1 | head -35"},
-        {"airmon-ng",   "AIRMON-NG",    "WIRELESS",      "wifi",     "airmon-ng --help 2>&1 | head -25"},
+        {"aircrack-ng", "AIRCRACK-NG",  "WIRELESS",      "wifi",     "aircrack-ng --help 2>&1 | head -35", ""},
+        {"airodump-ng", "AIRODUMP-NG",  "WIRELESS",      "wifi",     "airodump-ng --help 2>&1 | head -35", ""},
+        {"aireplay-ng", "AIREPLAY-NG",  "WIRELESS",      "wifi",     "aireplay-ng --help 2>&1 | head -35", ""},
+        {"airmon-ng",   "AIRMON-NG",    "WIRELESS",      "wifi",     "airmon-ng --help 2>&1 | head -25", ""},
+        {"reaver",      "REAVER",       "WIRELESS",      "wifi",     "reaver -h 2>&1 | head -30", ""},
+        {"wifite",      "WIFITE",       "WIRELESS",      "wifi",     "wifite --help 2>&1 | head -35", ""},
+        {"mdk4",        "MDK4",         "WIRELESS",      "wifi",     "mdk4 --help 2>&1 | head -30", ""},
+        {"macchanger",  "MACCHANGER",   "WIRELESS",      "wifi",     "macchanger --help 2>&1 | head -25", ""},
 
         // ── sniffing ──────────────────────────────────────────────────────
-        {"wireshark",   "WIRESHARK",    "SNIFFING",      "pulse",    ""},
-        {"tshark",      "TSHARK",       "SNIFFING",      "pulse",    "tshark --help 2>&1 | head -35"},
-        {"tcpdump",     "TCPDUMP",      "SNIFFING",      "pulse",    "tcpdump --help 2>&1 | head -30"},
+        {"wireshark",   "WIRESHARK",    "SNIFFING",      "pulse",    "", "wireshark"},
+        {"tshark",      "TSHARK",       "SNIFFING",      "pulse",    "tshark --help 2>&1 | head -35", ""},
+        {"tcpdump",     "TCPDUMP",      "SNIFFING",      "pulse",    "tcpdump --help 2>&1 | head -30", ""},
+        {"ettercap",    "ETTERCAP",     "SNIFFING",      "pulse",    "ettercap --help 2>&1 | head -30", "ettercap"},
+        {"bettercap",   "BETTERCAP",    "SNIFFING",      "pulse",    "bettercap --help 2>&1 | head -30", ""},
+        {"mitmproxy",   "MITMPROXY",    "SNIFFING",      "pulse",    "mitmproxy --help 2>&1 | head -30", ""},
+        {"responder",   "RESPONDER",    "SNIFFING",      "pulse",    "responder --help 2>&1 | head -30", ""},
+
+        // ── exploitation ──────────────────────────────────────────────────
+        {"searchsploit","SEARCHSPLOIT", "EXPLOITATION",  "bug",      "searchsploit --help 2>&1 | head -30", ""},
 
         // ── post exploitation ─────────────────────────────────────────────
-        {"ncat",        "NCAT",         "POST",          "terminal", "ncat --help 2>&1 | head -35"},
-        {"nc",          "NETCAT",       "POST",          "terminal", "nc -h 2>&1 | head -25"},
-        {"socat",       "SOCAT",        "POST",          "terminal", "socat -h 2>&1 | head -30"},
+        {"ncat",        "NCAT",         "POST",          "terminal", "ncat --help 2>&1 | head -35", ""},
+        {"nc",          "NETCAT",       "POST",          "terminal", "nc -h 2>&1 | head -25", ""},
+        {"socat",       "SOCAT",        "POST",          "terminal", "socat -h 2>&1 | head -30", ""},
+        {"rlwrap",      "RLWRAP",       "POST",          "terminal", "rlwrap --help 2>&1 | head -25", ""},
+
+        // ── reverse engineering ───────────────────────────────────────────
+        {"r2",          "RADARE2",      "REVERSING",     "bug",      "r2 -h 2>&1 | head -30", ""},
+        {"gdb",         "GDB",          "REVERSING",     "bug",      "gdb --help 2>&1 | head -25", ""},
+        {"ltrace",      "LTRACE",       "REVERSING",     "bug",      "ltrace --help 2>&1 | head -25", ""},
+        {"strace",      "STRACE",       "REVERSING",     "bug",      "strace --help 2>&1 | head -25", ""},
+        {"binwalk",     "BINWALK",      "REVERSING",     "bug",      "binwalk --help 2>&1 | head -35", ""},
+
+        // ── forensics ─────────────────────────────────────────────────────
+        {"foremost",    "FOREMOST",     "FORENSICS",     "bug",      "foremost -h 2>&1 | head -30", ""},
+        {"testdisk",    "TESTDISK",     "FORENSICS",     "bug",      "testdisk /help 2>&1 | head -25", ""},
+        {"exiftool",    "EXIFTOOL",     "FORENSICS",     "bug",      "exiftool 2>&1 | head -25", ""},
+        {"steghide",    "STEGHIDE",     "FORENSICS",     "bug",      "steghide --help 2>&1 | head -30", ""},
 
         // ── anonymity ─────────────────────────────────────────────────────
-        {"openvpn",     "OPENVPN",      "ANONYMITY",     "shield",   "openvpn --help 2>&1 | head -30"},
-        {"wg",          "WIREGUARD",    "ANONYMITY",     "shield",   "wg --help 2>&1 | head -25"},
-        {"proxychains4","PROXYCHAINS",  "ANONYMITY",     "shield",   "proxychains4 2>&1 | head -20"},
+        {"openvpn",     "OPENVPN",      "ANONYMITY",     "shield",   "openvpn --help 2>&1 | head -30", "openvpn"},
+        {"wg",          "WIREGUARD",    "ANONYMITY",     "shield",   "wg --help 2>&1 | head -25", ""},
+        {"proxychains4","PROXYCHAINS",  "ANONYMITY",     "shield",   "proxychains4 2>&1 | head -20", ""},
+        {"tor",         "TOR",          "ANONYMITY",     "shield",   "tor --help 2>&1 | head -25", "tor"},
 
         // ── defense ───────────────────────────────────────────────────────
-        {"nft",         "NFTABLES",     "DEFENSE",       "shield",   "nft list ruleset 2>&1 | head -40"},
-        {"aa-status",   "APPARMOR",     "DEFENSE",       "shield",   "aa-status 2>&1 | head -30"},
-        {"cryptsetup",  "CRYPTSETUP",   "DEFENSE",       "shield",   "cryptsetup --help 2>&1 | head -30"},
+        {"nft",         "NFTABLES",     "DEFENSE",       "shield",   "nft list ruleset 2>&1 | head -40", ""},
+        {"aa-status",   "APPARMOR",     "DEFENSE",       "shield",   "aa-status 2>&1 | head -30", ""},
+        {"cryptsetup",  "CRYPTSETUP",   "DEFENSE",       "shield",   "cryptsetup --help 2>&1 | head -30", ""},
+
+        /* ── the assistants ───────────────────────────────────────────────
+           PentAI and Ollama both install a .desktop entry from their hooks,
+           so they are already in the discovered list — but only if the hook
+           ran, which needs network at build time. Naming them here as well
+           means the launcher shows them in the ASSISTANT drawer even on an
+           image where the entry did not get written, and the de-duplication
+           below drops whichever copy the discovered list already has. */
+        {"pentai",      "PENTAI",       "ASSISTANT",     "agent",    "pentai", ""},
+        {"ollama",      "OLLAMA",       "ASSISTANT",     "agent",    "ollama-setup", ""},
     };
 
     /* Everything the curated list already covers, so a tool does not appear
@@ -493,12 +550,22 @@ void AppLauncher::scanCommandLineTools()
         if (QStandardPaths::findExecutable(bin).isEmpty())
             continue;   // not in this image
 
+        /* Its own logo when it ships one. Most CLI tools ship none, and fall
+           back to the drawn glyph; the few that do — Wireshark, Ettercap, Tor,
+           OpenVPN, Nmap's Zenmap — are recognised by their real icon rather
+           than wearing the shell's line art over their own brand. The lookup
+           tries the declared name first, then the binary's own name, which is
+           where a tool that installs an icon usually files it. */
+        QString icon = findIcon(QString::fromLatin1(t.iconName));
+        if (icon.isEmpty())
+            icon = findIcon(bin);
+
         QVariantMap row;
         row["id"] = QStringLiteral("cli:") + bin;
         row["title"] = QString::fromLatin1(t.title);
         row["short"] = QString::fromLatin1(t.title);
         row["glyph"] = QString::fromLatin1(t.glyph);
-        row["icon"] = QString();
+        row["icon"] = icon;
         row["code"] = bin.left(8).toUpper();
         row["kind"] = QStringLiteral("tool");
         row["category"] = QString::fromLatin1(t.category);

@@ -357,26 +357,50 @@ Item {
                 onClicked: root.powerRequested()
             }
 
-            // Date over time.
+            /* Date over time.
+               Horizontal: "SUN 09 AUG" above the clock, right-aligned in the
+               corner. Vertical: that date is wider than a 52px dock, so it is
+               broken into its three words stacked, each small and centred, over
+               the time — the only way the clock fits the strip without being
+               unreadably small or running off the edge. */
             Column {
-                spacing: 1
+                spacing: root.vertical ? 0 : 1
+
+                // The wide, one-line date, for the horizontal bar only.
                 Text {
-                    anchors.horizontalCenter: root.vertical ? parent.horizontalCenter : undefined
-                    anchors.right: root.vertical ? undefined : parent.right
+                    visible: !root.vertical
+                    anchors.right: parent.right
                     text: root.date
                     color: Theme.textMuted
                     font.family: Theme.mono
                     font.pixelSize: Theme.size2xs
                     font.letterSpacing: Theme.trackWide
                 }
+
+                // The same date, stacked, for the dock.
+                Repeater {
+                    model: root.vertical ? root.date.split(" ") : []
+                    Text {
+                        required property string modelData
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: modelData
+                        color: Theme.textMuted
+                        font.family: Theme.mono
+                        font.pixelSize: 7
+                        font.letterSpacing: 0.5
+                    }
+                }
+
+                Item { visible: root.vertical; width: 1; height: 3 }
+
                 Text {
                     anchors.horizontalCenter: root.vertical ? parent.horizontalCenter : undefined
                     anchors.right: root.vertical ? undefined : parent.right
                     text: root.clock
                     color: Theme.accent
                     font.family: Theme.mono
-                    font.pixelSize: root.vertical ? Theme.sizeSm : Theme.sizeMd
-                    font.letterSpacing: Theme.trackWide
+                    font.pixelSize: root.vertical ? Theme.sizeXs : Theme.sizeMd
+                    font.letterSpacing: root.vertical ? 0.5 : Theme.trackWide
                 }
             }
         }

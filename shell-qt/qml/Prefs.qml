@@ -110,17 +110,29 @@ QtObject {
     /* The band the icons live in. Kept apart from the label column, because
        the buttons are sized from this: sized from the whole bar instead, a
        vertical bar with labels turned on grew 97px icons with 50px of air
-       between them. */
-    readonly property int taskbarBase:
-        taskbarSize === "compact" ? 54 : taskbarSize === "large" ? 88 : 72
+       between them.
 
-    /** Extra width a vertical bar takes to write window and app names in. */
-    readonly property int taskbarLabelWidth: (taskbarVertical && taskbarLabels) ? 92 : 0
+       A vertical bar is deliberately slimmer than a horizontal one. Down the
+       side it is a dock, not a taskbar: a strip of icons, closer to what a
+       phone or a tiling desktop puts there than to the wide Windows bar. A
+       horizontal bar carries the clock and the tray inline and needs the
+       height; a vertical one stacks them and does not. */
+    readonly property int taskbarBase: taskbarVertical
+        ? (taskbarSize === "compact" ? 44 : taskbarSize === "large" ? 60 : 52)
+        : (taskbarSize === "compact" ? 54 : taskbarSize === "large" ? 88 : 72)
+
+    /* Extra width a vertical bar takes to write app and window names in.
+       Narrower than before, and only when asked for: the labels are an option
+       on the dock, not the reason it is as wide as it is. */
+    readonly property int taskbarLabelWidth: (taskbarVertical && taskbarLabels) ? 76 : 0
 
     readonly property int taskbarThickness: taskbarBase + taskbarLabelWidth
 
-    /** Window titles beside the icons, rather than icons alone. */
-    property bool taskbarLabels: true
+    /* Window titles beside the icons, rather than icons alone. Off by default
+       on the dock: a strip of icons is the point of putting the bar on its
+       side, and the names widen it back towards the horizontal bar it was
+       meant to be slimmer than. */
+    property bool taskbarLabels: false
 
     /* The one catalogue. It used to be written out three times — desktop,
        taskbar, launcher — which is why nothing could be pinned or removed:
