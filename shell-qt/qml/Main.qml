@@ -23,6 +23,7 @@ Window {
     property bool wifiOpen: false
     property bool powerOpen: false
     property bool mediaOpen: false
+    property bool btOpen: false
     property string clockText: ""
 
     property string menuTargetId: ""
@@ -120,6 +121,8 @@ Window {
             powerOpen = false
         } else if (mediaOpen) {
             mediaOpen = false
+        } else if (btOpen) {
+            btOpen = false
         } else if (wifiOpen) {
             wifiOpen = false
         } else if (launcherOpen) {
@@ -141,6 +144,7 @@ Window {
     Shortcut { sequences: ["Meta+L"]; onActivated: win.powerOpen = true }
     // The tray's Wi-Fi menu, without hunting for a 16px icon.
     Shortcut { sequences: ["Meta+W"]; onActivated: win.wifiOpen = !win.wifiOpen }
+    Shortcut { sequences: ["Meta+B"]; onActivated: win.btOpen = !win.btOpen }
     /* Lock and capture are also bound in the compositor, so they work even
        when the shell is busy or restarting. These are the same actions from
        inside it. */
@@ -561,6 +565,14 @@ Window {
         onDismissed: win.wifiOpen = false
     }
 
+    BluetoothPopup {
+        anchors.fill: parent
+        bottomInset: taskbar.height
+        visible: win.btOpen
+        z: 61
+        onDismissed: win.btOpen = false
+    }
+
     MediaPopup {
         anchors.fill: parent
         bottomInset: taskbar.height
@@ -730,6 +742,8 @@ Window {
         powerOpen: win.powerOpen
         onMediaRequested: win.mediaOpen = !win.mediaOpen
         mediaOpen: win.mediaOpen
+        onBluetoothRequested: win.btOpen = !win.btOpen
+        btOpen: win.btOpen
         wifiOpen: win.wifiOpen
         wifiAvailable: Network.available
         wifiConnected: {

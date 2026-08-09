@@ -83,6 +83,7 @@ QtObject {
         { id: "firewall", glyph: "shield",   title: "FIREWALL",     short: "FIREWALL", code: "DEF_20" },
         { id: "monitor",  glyph: "pulse",    title: "MONITOR",      short: "MONITOR",  code: "DEF_21" },
         { id: "install",  glyph: "install",  title: "INSTALL SYSTEM", short: "INSTALL", code: "SYS_09" },
+        { id: "ollama",   glyph: "pulse",    title: "LOCAL MODELS",   short: "MODELS",  code: "AI_30" },
         { id: "pentai",   glyph: "agent",    title: "PENTAI",         short: "PENTAI",  code: "AI_30" }
     ]
 

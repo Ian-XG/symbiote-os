@@ -227,11 +227,32 @@ Item {
                             font.family: Theme.mono
                             font.pixelSize: Theme.sizeSm
                         }
+                        /* A reveal toggle. Typing a passphrase you cannot see,
+                           on a keyboard whose layout you may have wrong, and
+                           being told only "wrong password" is a bad enough
+                           loop that every other desktop has this. */
+                        Item {
+                            id: revealBtn
+                            anchors { right: parent.right; rightMargin: 8
+                                      verticalCenter: parent.verticalCenter }
+                            width: 30; height: 20
+                            property bool shown: false
+                            HoverHandler { id: revealHover }
+                            TapHandler { onTapped: revealBtn.shown = !revealBtn.shown }
+                            Text {
+                                anchors.centerIn: parent
+                                text: revealBtn.shown ? "hide" : "show"
+                                color: revealHover.hovered ? Theme.accent : Theme.textMuted
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.size2xs
+                            }
+                        }
+
                         TextInput {
                             id: pwField
-                            anchors { left: keyLabel.right; leftMargin: 8; right: parent.right
-                                      rightMargin: 10; verticalCenter: parent.verticalCenter }
-                            echoMode: TextInput.Password
+                            anchors { left: keyLabel.right; leftMargin: 8; right: revealBtn.left
+                                      rightMargin: 8; verticalCenter: parent.verticalCenter }
+                            echoMode: revealBtn.shown ? TextInput.Normal : TextInput.Password
                             color: Theme.accent
                             font.family: Theme.mono
                             font.pixelSize: Theme.sizeSm

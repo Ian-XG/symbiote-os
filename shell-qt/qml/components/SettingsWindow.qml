@@ -383,16 +383,22 @@ Item {
             }
         }
 
-        // NETWORK
-        NetworkPanel {
-            visible: root.section === "NETWORK"
+        /* Loaded on demand. Both of these poll — one scans for access points,
+           the other drives BlueZ discovery — and they were instantiated for
+           the whole life of the window, running in the background while the
+           operator was on a completely different tab. */
+        Loader {
             anchors.fill: parent
+            active: root.section === "NETWORK"
+            visible: active
+            sourceComponent: NetworkPanel {}
         }
 
-        // BLUETOOTH
-        BluetoothPanel {
-            visible: root.section === "BLUETOOTH"
+        Loader {
             anchors.fill: parent
+            active: root.section === "BLUETOOTH"
+            visible: active
+            sourceComponent: BluetoothPanel {}
         }
 
         // SYSTEM
@@ -537,15 +543,24 @@ Item {
         property bool shown: false
         anchors.fill: parent
         visible: opacity > 0
+
+        /* Input stops the instant the tab changes, not when the fade finishes.
+           With only `visible` gating it, the outgoing section stayed live and
+           on top for the whole transition and swallowed the first click on the
+           section you had just asked for — which is what made the tabs feel
+           like they were ignoring you. */
+        enabled: shown
+
         opacity: shown ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.durMed
+        // Short. A third of a second between asking and arriving reads as lag.
+        Behavior on opacity { NumberAnimation { duration: Theme.durFast
                                                 easing.type: Easing.OutCubic } }
         transform: Translate {
             y: shownAnim
-            Behavior on y { NumberAnimation { duration: Theme.durMed
+            Behavior on y { NumberAnimation { duration: Theme.durFast
                                               easing.type: Easing.OutCubic } }
         }
-        property real shownAnim: shown ? 0 : 8
+        property real shownAnim: shown ? 0 : 6
     }
 
     component Segmented: Row {

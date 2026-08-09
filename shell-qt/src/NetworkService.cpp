@@ -229,16 +229,29 @@ void NetworkService::connectTo(const QString &ssid, const QString &passphrase)
         conn["type"] = "802-11-wireless";
         conn["id"] = ssid;
         conn["autoconnect"] = true;
+        /* Zero means keep trying. The default is four attempts, after which
+           NetworkManager gives up for good — which is why a network that
+           dropped once came back asking for the password again instead of
+           rejoining on its own. */
+        conn["autoconnect-retries"] = 0;
         settings["connection"] = conn;
 
         QVariantMap wireless;
         wireless["ssid"] = ssid.toUtf8();
+        wireless["mode"] = "infrastructure";
+        /* Power saving is what drops these links. The card sleeps between
+           beacons, the access point ages the association out, and the session
+           comes back as a fresh unauthenticated client. */
+        wireless["powersave"] = 2;   // 2 = disable
         settings["802-11-wireless"] = wireless;
 
         if (!passphrase.isEmpty()) {
             QVariantMap sec;
             sec["key-mgmt"] = "wpa-psk";
             sec["psk"] = passphrase;
+            // 0 = keep the secret in the profile. Without it NetworkManager
+            // asks an agent for the passphrase on every single reconnect.
+            sec["psk-flags"] = 0;
             settings["802-11-wireless-security"] = sec;
         }
 

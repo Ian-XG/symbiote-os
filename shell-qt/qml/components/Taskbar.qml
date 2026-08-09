@@ -24,6 +24,9 @@ Item {
     signal wifiRequested()
     signal powerRequested()
     signal mediaRequested()
+    signal bluetoothRequested()
+
+    property bool btOpen: false
 
     property bool mediaOpen: false
 
@@ -309,14 +312,20 @@ Item {
 
         /* Only shown when there is a radio. A machine without Bluetooth should
            say nothing about it rather than carry a permanently dead badge. */
+        /* Pressable now. It was a read-only badge: it told you the radio was
+           there and did nothing at all when you pressed it. */
         Rectangle {
             visible: Bluetooth.present
             anchors.verticalCenter: parent.verticalCenter
             width: btText.width + 16
-            height: 20
-            color: "transparent"
+            height: 22
+            color: (btHover.hovered || root.btOpen) ? Theme.tint(0.10) : "transparent"
             border.width: 1
-            border.color: Bluetooth.powered ? Theme.accent : Theme.line
+            border.color: (Bluetooth.powered || btHover.hovered || root.btOpen)
+                          ? Theme.accent : Theme.line
+
+            HoverHandler { id: btHover }
+            TapHandler { onTapped: root.bluetoothRequested() }
             Row {
                 id: btText
                 anchors.centerIn: parent

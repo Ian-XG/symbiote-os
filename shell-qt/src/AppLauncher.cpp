@@ -32,6 +32,15 @@ AppLauncher::AppLauncher(QObject *parent) : QObject(parent)
         {"nmap",     {"foot", {"-T", "Network Scan", "sh", "-c", "nmap --help; exec ${SHELL:-sh}"}}},
         {"vuln",     {"foot", {"-T", "Vuln Scanner", "sh", "-c", "nikto -Help 2>&1 | head -20; exec ${SHELL:-sh}"}}},
         {"monitor",  {"foot", {"-T", "Monitor", "sh", "-c", "exec top"}}},
+        /* Ollama has no interface of its own; the terminal client is the
+           interface. Listing the models first turns an empty prompt into
+           something you can act on. */
+        {"ollama",   {"foot", {"-T", "Local Models", "sh", "-c",
+                               "ollama list 2>/dev/null || echo 'ollama is not running — "
+                               "sudo systemctl start ollama'; echo; "
+                               "echo 'Pull a model:  ollama pull llama3.2'; "
+                               "echo 'Then talk to it:  ollama run llama3.2'; echo; "
+                               "exec ${SHELL:-sh}"}}},
         /* PentAI asks for a provider and a key on first run, so it opens in a
            terminal that stays after it exits — otherwise the wizard would
            flash past and the window would vanish. */
