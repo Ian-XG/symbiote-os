@@ -113,9 +113,11 @@ bettercap
 netsniff-ng
 
 # ── reverse engineering ─────────────────────────────────────────────────────
-# rizin is the maintained fork of radare2 and is what trixie ships; radare2
-# itself was dropped from the release.
-rizin
+# Neither radare2 nor its fork rizin is in trixie; both are in README-tools.md
+# as external installs. gdb, objdump (binutils), ltrace, strace and binwalk are
+# the packaged coverage. objdump comes with binutils, pulled by build-essential,
+# but naming it makes the disassembler explicit rather than incidental.
+binutils
 gdb
 ltrace
 strace

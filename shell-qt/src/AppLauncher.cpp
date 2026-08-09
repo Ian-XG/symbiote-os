@@ -492,7 +492,7 @@ void AppLauncher::scanCommandLineTools()
         {"rlwrap",      "RLWRAP",       "POST",          "terminal", "rlwrap --help 2>&1 | head -25", ""},
 
         // ── reverse engineering ───────────────────────────────────────────
-        {"rizin",       "RIZIN",        "REVERSING",     "bug",      "rizin -h 2>&1 | head -30", ""},
+        {"objdump",     "OBJDUMP",      "REVERSING",     "bug",      "objdump --help 2>&1 | head -30", ""},
         {"gdb",         "GDB",          "REVERSING",     "bug",      "gdb --help 2>&1 | head -25", ""},
         {"ltrace",      "LTRACE",       "REVERSING",     "bug",      "ltrace --help 2>&1 | head -25", ""},
         {"strace",      "STRACE",       "REVERSING",     "bug",      "strace --help 2>&1 | head -25", ""},

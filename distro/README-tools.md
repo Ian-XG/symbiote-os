@@ -25,6 +25,9 @@ clone`. None is hard; none is something the image can ship cleanly.
 | **theHarvester** | `pipx install theHarvester`. |
 | **Responder** | `git clone https://github.com/lgandx/Responder`. |
 | **CrackMapExec / NetExec** | `pipx install netexec` (NetExec is the maintained fork). |
+| **radare2 / rizin** | Neither is in trixie; the image ships `objdump`, `gdb`, `ltrace`, `strace`, `binwalk`. Get radare2 from `git clone https://github.com/radareorg/radare2` or rizin from its `.deb` releases. |
+| **wapiti** | `pipx install wapiti3`. |
+| **mitmproxy** | `pipx install mitmproxy`. |
 | **SecLists** | `git clone https://github.com/danielmiessler/SecLists` — wordlists, not a program. |
 
 ## Removed or renamed in trixie
