@@ -15,13 +15,20 @@ on:
   # Any tag starting with v publishes a release.
   push:
     tags: ["v*"]
-  # And it can always be run by hand, for an image off a branch.
+    # A push to any branch whose head commit says [iso] builds one too. This is
+    # the way to build off a feature branch: workflow_dispatch's button only
+    # appears once the workflow is on the default branch, and a tag is not
+    # always the right granularity while a branch is still in progress. Ordinary
+    # pushes do not match — the job below also checks the marker, so a build is
+    # never started by accident.
+    branches: ["**"]
+  # And it can always be run by hand once this reaches the default branch.
   workflow_dispatch:
     inputs:
       release:
         description: "Publish a draft release as well as an artifact"
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: write        # needed to create the release; nothing else
@@ -29,6 +36,12 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # A tag, a hand-run, or a branch push whose commit asked for it. Without
+    # this guard every push to every branch would start a forty-minute build.
+    if: >-
+      startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[iso]')
     # A Debian live image is a long build: debootstrap, a few hundred packages,
     # squashfs, then xorriso. The default 360-minute ceiling is plenty, but an
     # explicit one turns a hung mount into a failure rather than six wasted hours.
@@ -84,15 +97,19 @@ jobs:
           retention-days: 14
           compression-level: 0     # already compressed; recompressing wastes minutes
 
-      # Tags publish. A manual run publishes only if it was asked to, and as a
-      # draft either way — a release is a thing people download and trust, so
-      # it gets a human's eye before it is public.
+      # Whatever built the ISO gets a draft release to hang it on — a tag, a
+      # hand-run, or a [iso] branch push. Draft either way: a release is a thing
+      # people download and trust, so it gets a human's eye before it is public.
       - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/') || inputs.release
+        if: >-
+          startsWith(github.ref, 'refs/tags/') ||
+          inputs.release ||
+          contains(github.event.head_commit.message, '[iso]')
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Build {0}', github.sha) }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Build {0} · {1}', github.run_number, github.ref_name) }}
           files: |
             out/${{ steps.iso.outputs.name }}
             out/SHA256SUMS
