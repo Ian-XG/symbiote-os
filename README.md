@@ -41,6 +41,8 @@ this repository turns it into an operating system that boots.
 | Applications: what the machine installed, read from its own desktop entries. | Tools: the security kit, grouped the way Kali groups its menu. |
 | ![Settings](docs/img/settings.png) | ![Taskbar](docs/img/taskbar.png) |
 | Ten sections down the side, and every control acts on something. | The bar goes on any edge. Bottom by default. |
+| ![Dock](docs/img/dock.png) | |
+| On the side it is a slim dock — a strip of icons, not a sideways taskbar. | |
 
 ![Signal blue](docs/img/signal.png)
 
