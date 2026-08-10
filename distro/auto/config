@@ -22,6 +22,7 @@ lb config noauto \
 	--iso-volume "SYMBIOTE" \
 	--memtest none \
 	--apt-recommends false \
+	--compression xz \
 	--firmware-chroot false \
 	--firmware-binary false \
 	--debian-installer none \
