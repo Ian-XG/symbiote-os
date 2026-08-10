@@ -42,11 +42,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           # On a marker push there are no dispatch inputs, so the branch path
-          # carries the intent this one time: publish v0.2.0, drop the two
-          # build-N drafts it superseded. On a hand-run these come from the
-          # dispatch inputs instead.
-          PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish || 'v0.2.0' }}
-          DELETE: ${{ github.event_name == 'workflow_dispatch' && inputs.delete || 'build-8,build-9' }}
+          # carries the intent this one time: publish v0.2.1 (the slimmed
+          # single-file image) and delete nothing. On a hand-run these come from
+          # the dispatch inputs instead.
+          PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish || 'v0.2.1' }}
+          DELETE: ${{ github.event_name == 'workflow_dispatch' && inputs.delete || '' }}
         run: |
           set -uo pipefail
 
@@ -58,6 +58,32 @@ jobs:
               echo "   published $PUBLISH"
             else
               echo "   could not publish $PUBLISH (already published, or no such draft)"
+            fi
+
+            # v0.2.1 was built before the ISO workflow learned to write notes
+            # that match a single-file image, so its stored body still describes
+            # a split that did not happen. Correct it here, once.
+            if [ "$PUBLISH" = "v0.2.1" ]; then
+              notes=$(cat <<'NOTES'
+          The slimmed single-file image — xz-compressed squashfs, with docs,
+          man pages and non-English locales stripped (no tool, Ollama or the
+          Electron fallback removed). About 1.92 GB, so it fits GitHub's 2 GB
+          asset limit as one file.
+
+          Download the `.iso` and verify:
+
+          ```sh
+          sha256sum -c SHA256SUMS
+          ```
+
+          The image is isohybrid — Balena Etcher, `dd`, or Rufus in DD mode.
+          User and password are both `symbiote`, the documented default of a
+          live image. Change it if the stick leaves your desk.
+          NOTES
+          )
+              # Strip the YAML block indentation the heredoc carried in.
+              printf '%s\n' "$notes" | sed 's/^          //' > /tmp/notes.md
+              gh release edit "$PUBLISH" --notes-file /tmp/notes.md && echo "   notes corrected"
             fi
           fi
 

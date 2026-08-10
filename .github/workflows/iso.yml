@@ -127,6 +127,39 @@ jobs:
             echo "split=false" >> "$GITHUB_OUTPUT"
           fi
 
+          # The release notes, written to match what actually got uploaded —
+          # one .iso or a set of parts — rather than a fixed paragraph that
+          # claimed a split even when the image fit. Kept out of out/ so it is
+          # not itself attached as a release asset.
+          human=$(numfmt --to=iec --suffix=B "$bytes" 2>/dev/null || echo "${bytes} bytes")
+          {
+            echo "Built from \`${GITHUB_SHA}\`. Size: ${human}."
+            echo
+            if [ "$bytes" -ge 2147483648 ]; then
+              echo "**Larger than GitHub's 2 GB release-asset limit, so the image is"
+              echo "split into parts.** Download every \`.part*\` file, then reassemble"
+              echo "and verify:"
+              echo
+              echo '```sh'
+              echo "cat symbiote-os-*.iso.part* > symbiote-os.iso"
+              echo "sha256sum -c SHA256SUMS"
+              echo '```'
+              echo
+              echo "\`PARTS.SHA256SUMS\` checks the parts individually if a download"
+              echo "looks truncated."
+            else
+              echo "A single-file image. Download the \`.iso\` and verify:"
+              echo
+              echo '```sh'
+              echo "sha256sum -c SHA256SUMS"
+              echo '```'
+            fi
+            echo
+            echo "The image is isohybrid — Balena Etcher, \`dd\`, or Rufus in DD mode."
+            echo "User and password are both \`symbiote\`, the documented default of a"
+            echo "live image. Change it if the stick leaves your desk."
+          } > "$GITHUB_WORKSPACE/release-notes.md"
+
       # The artifact keeps the WHOLE, unsplit ISO — one download, no
       # reassembly, for anyone with repo access. It is the fast path; the
       # release parts are the durable, shareable, non-expiring one.
@@ -169,23 +202,5 @@ jobs:
           # plus their checksums when it did not.
           files: |
             out/*
-          body: |
-            Built from `${{ github.sha }}`. Size: ${{ steps.iso.outputs.size }} bytes.
-
-            **The image is larger than GitHub's 2 GB release-asset limit, so it
-            is split into parts.** Download every `.part*` file, then reassemble
-            and verify:
-
-            ```sh
-            cat symbiote-os-*.iso.part* > symbiote-os.iso
-            sha256sum -c SHA256SUMS
-            ```
-
-            `SHA256SUMS` is the checksum of the whole reassembled ISO;
-            `PARTS.SHA256SUMS` checks the parts individually if a download looks
-            truncated. If the build fit under 2 GB there is a single `.iso` and
-            no parts — just verify it against `SHA256SUMS`.
-
-            The image is isohybrid — Balena Etcher, `dd`, or Rufus in DD mode.
-            User and password are both `symbiote`, the documented default of a
-            live image. Change it if the stick leaves your desk.
+          # Notes written by the build to match what was actually uploaded.
+          body_path: release-notes.md
