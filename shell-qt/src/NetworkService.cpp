@@ -359,10 +359,21 @@ void NetworkService::connectTo(const QString &ssid, const QString &passphrase)
            A network the operator joined by hand should win over one that
            happens to be in range. */
         conn["autoconnect-priority"] = 10;
+        /* Zero means keep trying. The default is four attempts, after which
+           NetworkManager gives up on the profile entirely — so a network that
+           dropped once while the laptop was asleep or out of range never came
+           back by itself, and the only visible symptom was being asked for the
+           password again. */
+        conn["autoconnect-retries"] = 0;
         settings["connection"] = conn;
 
         QVariantMap wireless;
         wireless["ssid"] = ssid.toUtf8();
+        /* Per-profile copy of the global setting in
+           /etc/NetworkManager/conf.d/10-symbiote.conf: a profile written here
+           carries its own value, and without it the global default would be
+           overridden by this very connection. */
+        wireless["powersave"] = 2u;   // 2 = disable
         settings["802-11-wireless"] = wireless;
 
         if (!passphrase.isEmpty()) {

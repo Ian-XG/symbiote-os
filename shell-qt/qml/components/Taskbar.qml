@@ -305,14 +305,14 @@ Item {
             TrayButton {
                 visible: Bluetooth.present
                 glyph: "bluetooth"
-                lit: Bluetooth.powered
+                lit: Bluetooth.powered || root.btOpen
                 text: {
                     var n = 0
                     for (var i = 0; i < Bluetooth.devices.length; i++)
                         if (Bluetooth.devices[i].connected) n++
                     return n ? String(n) : ""
                 }
-                onClicked: root.settingsBluetoothRequested()
+                onClicked: root.bluetoothRequested()
             }
 
             // Labelled. An unlabelled percentage next to the battery's
@@ -525,7 +525,12 @@ Item {
     /* Opening Settings on the Bluetooth section. The tray badge used to be a
        label with nothing behind it: the radio's state was visible and
        unreachable. */
-    signal settingsBluetoothRequested()
+    /* The badge opened Settings on its section. That works, but it is the whole
+       window for what is usually one action — turn the radio on, pick a device.
+       Wi-Fi, sound and power all answer from the tray; this now does too. */
+    signal bluetoothRequested()
+
+    property bool btOpen: false
 
     // ── tray furniture ─────────────────────────────────────────
     component TrayButton: Item {

@@ -33,6 +33,7 @@ Window {
     property bool wifiOpen: false
     property bool powerOpen: false
     property bool mediaOpen: false
+    property bool btOpen: false
     property string clockText: ""
 
     property string menuTargetId: ""
@@ -115,6 +116,8 @@ Window {
             wifiOpen = true
         } else if (parts[0] === "power") {
             powerOpen = true
+        } else if (parts[0] === "bt") {
+            btOpen = true
         } else if (parts[0] === "media") {
             mediaOpen = true
         } else if (parts[0] === "ctx") {
@@ -142,6 +145,8 @@ Window {
             mediaOpen = false
         } else if (wifiOpen) {
             wifiOpen = false
+        } else if (btOpen) {
+            btOpen = false
         } else if (launcherOpen) {
             launcherOpen = false
         } else if (settingsOpen) {
@@ -161,6 +166,7 @@ Window {
     Shortcut { sequences: ["Meta+L"]; onActivated: win.powerOpen = true }
     // The tray's Wi-Fi menu, without hunting for a 16px icon.
     Shortcut { sequences: ["Meta+W"]; onActivated: win.wifiOpen = !win.wifiOpen }
+    Shortcut { sequences: ["Meta+B"]; onActivated: win.btOpen = !win.btOpen }
     /* Lock and capture are also bound in the compositor, so they work even
        when the shell is busy or restarting. These are the same actions from
        inside it. */
@@ -607,6 +613,15 @@ Window {
         onDismissed: win.wifiOpen = false
     }
 
+    BluetoothPopup {
+        anchors.fill: parent
+        edge: Prefs.taskbarEdge
+        inset: win.barSize
+        visible: win.btOpen
+        z: 60
+        onDismissed: win.btOpen = false
+    }
+
     MediaPopup {
         anchors.fill: parent
         edge: Prefs.taskbarEdge
@@ -816,9 +831,7 @@ Window {
         /* The Bluetooth badge used to be a label with nothing behind it: the
            radio's state was visible and unreachable, so the only way to connect
            a headset was to know that Settings had a Bluetooth section. */
-        onSettingsBluetoothRequested: {
-            settingsPanel.section = "BLUETOOTH"
-            win.settingsOpen = true
-        }
+        onBluetoothRequested: win.btOpen = !win.btOpen
+        btOpen: win.btOpen
     }
 }
