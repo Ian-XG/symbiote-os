@@ -2,6 +2,8 @@
 
 #include <QDBusConnection>
 #include <QDBusInterface>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QDBusReply>
 
 namespace {
@@ -16,41 +18,80 @@ constexpr auto CAPABILITY = "KeyboardDisplay";
 BluetoothAgent::BluetoothAgent(QObject *parent)
     : QObject(parent)
 {
-    QDBusConnection bus = QDBusConnection::systemBus();
-
-    if (!bus.registerObject(QLatin1String(AGENT_PATH), this,
-                            QDBusConnection::ExportAllSlots)) {
+    if (!QDBusConnection::systemBus().registerObject(
+            QLatin1String(AGENT_PATH), this, QDBusConnection::ExportAllSlots))
         qWarning("bluetooth: could not export the pairing agent on the bus");
-        return;
-    }
+}
 
-    QDBusInterface manager(BLUEZ, "/org/bluez", "org.bluez.AgentManager1", bus);
+/*
+ * Registration runs asynchronously, and it matters more than it looks.
+ *
+ * This was a blocking call in the constructor. On a machine with no Bluetooth
+ * at all, bluetooth.service does not start — it is conditional on
+ * /sys/class/bluetooth existing — so the call fell through to bus activation
+ * and sat there until dbus-daemon gave up 25 seconds later. Every one of those
+ * seconds was spent inside the shell's constructor, on the GUI thread, before
+ * the desktop had drawn anything. The setTimeout below never helped: it bounds
+ * the reply, not the service activation behind it.
+ */
+void BluetoothAgent::registerWithBluez()
+{
+    if (m_registered || m_registering)
+        return;
+    m_registering = true;
+
+    QDBusInterface manager(BLUEZ, "/org/bluez", "org.bluez.AgentManager1",
+                           QDBusConnection::systemBus());
     manager.setTimeout(5000);
 
-    QDBusMessage reply = manager.call("RegisterAgent",
-                                      QVariant::fromValue(QDBusObjectPath(AGENT_PATH)),
-                                      QString::fromLatin1(CAPABILITY));
-    if (reply.type() == QDBusMessage::ErrorMessage) {
+    auto *w = new QDBusPendingCallWatcher(
+        manager.asyncCall("RegisterAgent",
+                          QVariant::fromValue(QDBusObjectPath(AGENT_PATH)),
+                          QString::fromLatin1(CAPABILITY)),
+        this);
+
+    connect(w, &QDBusPendingCallWatcher::finished, this,
+            [this](QDBusPendingCallWatcher *call) {
+        call->deleteLater();
+        const QDBusPendingReply<> reply = *call;
         // AlreadyExists is fine — a previous run of the shell left one behind.
-        if (!reply.errorName().endsWith(QLatin1String("AlreadyExists"))) {
+        if (reply.isError()
+            && !reply.error().name().endsWith(QLatin1String("AlreadyExists"))) {
+            m_registering = false;
             qWarning("bluetooth: RegisterAgent failed: %s",
-                     qPrintable(reply.errorMessage()));
+                     qPrintable(reply.error().message()));
             return;
         }
-    }
+        requestDefault();
+    });
+}
 
+void BluetoothAgent::requestDefault()
+{
     /* Without this BlueZ keeps whatever agent it had. bluetoothctl registers
        one on the same bus, and the last default wins. */
-    reply = manager.call("RequestDefaultAgent",
-                         QVariant::fromValue(QDBusObjectPath(AGENT_PATH)));
-    if (reply.type() == QDBusMessage::ErrorMessage) {
-        qWarning("bluetooth: RequestDefaultAgent failed: %s",
-                 qPrintable(reply.errorMessage()));
-        return;
-    }
+    QDBusInterface manager(BLUEZ, "/org/bluez", "org.bluez.AgentManager1",
+                           QDBusConnection::systemBus());
+    manager.setTimeout(5000);
 
-    m_registered = true;
-    emit registeredChanged();
+    auto *w = new QDBusPendingCallWatcher(
+        manager.asyncCall("RequestDefaultAgent",
+                          QVariant::fromValue(QDBusObjectPath(AGENT_PATH))),
+        this);
+
+    connect(w, &QDBusPendingCallWatcher::finished, this,
+            [this](QDBusPendingCallWatcher *call) {
+        call->deleteLater();
+        const QDBusPendingReply<> reply = *call;
+        m_registering = false;
+        if (reply.isError()) {
+            qWarning("bluetooth: RequestDefaultAgent failed: %s",
+                     qPrintable(reply.error().message()));
+            return;
+        }
+        m_registered = true;
+        emit registeredChanged();
+    });
 }
 
 BluetoothAgent::~BluetoothAgent()

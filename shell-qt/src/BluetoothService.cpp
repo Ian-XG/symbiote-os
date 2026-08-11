@@ -62,8 +62,10 @@ BluetoothService::BluetoothService(QObject *parent)
     qDBusRegisterMetaType<QMap<QString, QVariantMap>>();
     qDBusRegisterMetaType<ManagedObjects>();
 
-    /* Registered up front, not on first pair: BlueZ needs an agent in place
-       before a device asks anything, and registering takes one bus call. */
+    /* Created up front, not on first pair: BlueZ needs an agent in place
+       before a device asks anything. Creating it only exports the object on
+       the bus; the registration handshake happens in refresh(), once a radio
+       is known to exist. */
     m_agent = new BluetoothAgent(this);
     connect(m_agent, &BluetoothAgent::confirmationRequested, this,
             [this](const QString &path, const QString &code) {
@@ -193,6 +195,13 @@ void BluetoothService::refresh()
         emit changed();
         return;
     }
+
+    /* A radio exists, so BlueZ is worth talking to. Registering from here
+       rather than from the constructor also covers a dongle plugged in after
+       login: the agent arrives when the radio does. Repeat calls are cheap —
+       the agent drops them once it is registered or already trying. */
+    if (m_agent)
+        m_agent->registerWithBluez();
 
     bool ok = false;
     const ManagedObjects objects = managedObjects(&ok);

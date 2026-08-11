@@ -60,6 +60,7 @@ qt_add_executable(symbiote-shell-qt
     src/ProcessMonitor.cpp
     src/NetworkService.cpp
     src/BluetoothService.cpp
+    src/DisplayService.cpp
     src/BluetoothAgent.cpp
     src/PacedAnimationDriver.h
     src/PowerActions.h
@@ -105,6 +106,7 @@ set(SYMBIOTE_QML
     qml/components/ContextMenu.qml
     qml/components/WifiPopup.qml
     qml/components/BluetoothPopup.qml
+    qml/components/SecondaryShell.qml
     qml/components/BatteryGauge.qml
     qml/components/PowerMenu.qml
     qml/components/AppIcon.qml

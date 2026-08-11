@@ -1,0 +1,18 @@
+Overrides for desktop entries that should not appear in the launcher.
+
+freedesktop resolves an entry by ID, and a file here replaces the one of the
+same name under /usr/share/applications. Setting NoDisplay=true is how you
+retire a system entry without editing a packaged file that the next upgrade
+would put straight back.
+
+What is buried here, and why:
+
+  foot-server, footclient   Two more ways to reach the same terminal. Searching
+                            "term" returned three near-identical results and
+                            two of them do nothing useful started by hand.
+  lstopo                    Draws a diagram of the CPU topology. It is a
+                            dependency of the hardware tooling, not something
+                            anyone opens on purpose.
+
+The terminal itself stays: foot.desktop carries Keywords=terminal, which is
+what makes searching "terminal" find it.

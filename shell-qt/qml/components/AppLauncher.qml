@@ -47,6 +47,9 @@ Item {
         return app.title.toLowerCase().indexOf(q) !== -1
             || String(app.id).toLowerCase().indexOf(q) !== -1
             || String(app.category || "").toLowerCase().indexOf(q) !== -1
+            // Keywords and GenericName off the desktop entry, so the terminal
+            // answers to "terminal" and not only to "foot".
+            || String(app.search || "").toLowerCase().indexOf(q) !== -1
     }
 
     readonly property bool searching: query !== ""

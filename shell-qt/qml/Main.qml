@@ -1,4 +1,5 @@
 import QtQuick
+import QtQml
 import QtQuick.Window
 import Symbiote
 
@@ -231,6 +232,42 @@ Window {
             duration: 8000
             loops: Animation.Infinite
             running: Prefs.scanline
+        }
+    }
+
+    /* One desktop surface per extra monitor.
+     *
+     * `Displays.count` is in the expression on purpose. The screen list itself
+     * is what gets used; reading the count alongside it ties this binding to a
+     * signal that is known to fire when a monitor is plugged in or unplugged,
+     * so a second screen lights up as soon as it is attached instead of at the
+     * next restart of the shell.
+     */
+    readonly property var secondaryScreens: {
+        var out = []
+        var all = Qt.application.screens
+        var n = Displays.count            // dependency, not decoration
+        for (var i = 0; i < all.length; i++)
+            if (!win.screen || all[i].name !== win.screen.name)
+                out.push(all[i])
+        return out
+    }
+
+    Instantiator {
+        model: win.secondaryScreens
+        delegate: SecondaryShell {
+            targetScreen: modelData
+            s: win.s
+            clockText: win.clockText
+            dateText: win.dateText
+            launcherOpen: win.launcherOpen
+            /* The panels stay on the primary screen. Opening a second launcher
+               on each monitor would mean two of them on screen at once, each
+               with its own idea of what is selected. */
+            onMenuToggled: win.launcherOpen = !win.launcherOpen
+            onWifiRequested: win.wifiOpen = !win.wifiOpen
+            onPowerRequested: win.powerOpen = !win.powerOpen
+            onMediaRequested: win.mediaOpen = !win.mediaOpen
         }
     }
 

@@ -35,6 +35,11 @@ public:
     /** True once BlueZ has accepted us as the default agent. */
     bool registered() const { return m_registered; }
 
+    /* Ask BlueZ to take this agent, without blocking. Call it when a radio is
+       actually present — with none, org.bluez is not running and will not
+       start, and the request only buys a long wait for a certain failure. */
+    void registerWithBluez();
+
     /** Answer whatever request is outstanding. */
     void resolve(bool accept);
 
@@ -70,8 +75,13 @@ private:
     /* Hold BlueZ's call open while the operator decides, then answer it. A
        plain return would accept or reject before anyone had seen the code. */
     void holdForAnswer();
+    /** Second leg of registration: claim the default-agent slot. */
+    void requestDefault();
 
     bool m_registered = false;
+    /* One registration at a time. The service polls for a radio, so without
+       this a slow bus would collect a fresh RegisterAgent every few seconds. */
+    bool m_registering = false;
     bool m_pending = false;
     /* True when the held call must be answered with text rather than with a
        bare yes — the reply signature differs, and sending the wrong one leaves

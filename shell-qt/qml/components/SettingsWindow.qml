@@ -34,6 +34,7 @@ Item {
         { key: "APPEARANCE", label: "APPEARANCE", glyph: "settings" },
         { key: "TASKBAR",    label: "TASKBAR",    glyph: "app" },
         { key: "SOUND & DISPLAY", label: "SOUND & DISPLAY", glyph: "volume" },
+        { key: "SCREENS",    label: "SCREENS",    glyph: "app" },
         { key: "NETWORK",    label: "NETWORK",    glyph: "wifi" },
         { key: "BLUETOOTH",  label: "BLUETOOTH",  glyph: "bluetooth" },
         { key: "KEYBOARD",   label: "KEYBOARD",   glyph: "terminal" },
@@ -520,6 +521,130 @@ Item {
                             absent: !Media.backlightAvailable
                             absentText: "no backlight — external display?"
                             onMoved: function (v) { Media.setBrightness(v) }
+                        }
+                    }
+                }
+            }
+
+            // SCREENS ──────────────────────────────────────────
+            /* Monitors, and where they sit relative to each other. There was
+               nowhere in the shell to see a second display, let alone move it,
+               so a laptop plugged into a monitor got whatever arrangement the
+               compositor guessed at and no way to change it. */
+            Section {
+                shown: root.section === "SCREENS"
+
+                SettingGroup {
+                    title: "ATTACHED"
+
+                    Repeater {
+                        model: Displays.screens
+
+                        delegate: Item {
+                            id: scr
+                            required property var modelData
+                            width: parent ? parent.width : 300
+                            height: 58
+
+                            Text {
+                                id: scrName
+                                anchors { left: parent.left; top: parent.top; topMargin: 6 }
+                                text: scr.modelData.name
+                                      + (scr.modelData.primary ? "   ·   PRIMARY" : "")
+                                color: scr.modelData.primary ? Theme.accent : Theme.text
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.sizeXs
+                                font.letterSpacing: Theme.trackWide
+                            }
+
+                            Text {
+                                anchors { left: parent.left; top: scrName.bottom; topMargin: 4 }
+                                text: {
+                                    var m = scr.modelData
+                                    var bits = [m.label + " at " + m.refresh + " Hz"]
+                                    if (m.scale !== 1) bits.push("scale " + m.scale + "×")
+                                    bits.push("at " + m.x + "," + m.y)
+                                    if (m.model) bits.push(m.model)
+                                    return bits.join("   ")
+                                }
+                                color: Theme.textMuted
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.size2xs
+                            }
+
+                            HudButton {
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                text: "TURN OFF"
+                                danger: true
+                                // The primary is never offered: switching off the
+                                // screen holding the panel leaves nothing to undo it with.
+                                visible: Displays.manageable && !scr.modelData.primary
+                                onClicked: Displays.setEnabled(scr.modelData.name, false)
+                            }
+
+                            Rectangle {
+                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                                height: 1
+                                color: Theme.hairline
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        label: "Arrangement"
+                        hint: Displays.manageable
+                              ? "Side by side puts them in the order listed above, tops aligned."
+                              : "wlr-randr is not installed, so the layout can only be read, not changed."
+                        separator: false
+                        enabled: Displays.manageable && Displays.count > 1
+
+                        /* Wrapped in a Row on purpose: SettingRow places one
+                           control against its right edge, so two of them land
+                           on the same spot and print over each other. */
+                        Row {
+                            spacing: 8
+
+                            HudButton {
+                                text: "SIDE BY SIDE"
+                                enabled: Displays.manageable && Displays.count > 1
+                                onClicked: {
+                                    var order = []
+                                    for (var i = 0; i < Displays.screens.length; i++)
+                                        order.push(Displays.screens[i].name)
+                                    Displays.arrangeHorizontally(order)
+                                }
+                            }
+
+                            HudButton {
+                                text: "MIRROR"
+                                enabled: Displays.manageable && Displays.count > 1
+                                onClicked: Displays.mirrorAll()
+                            }
+                        }
+                    }
+                }
+
+                SettingGroup {
+                    title: "NOTES"
+                    visible: Displays.count < 2 || Displays.lastError !== ""
+
+                    SettingRow {
+                        visible: Displays.count < 2
+                        label: "One display"
+                        hint: "Only one monitor is attached. Plug in another and it appears here, "
+                              + "with its own wallpaper and taskbar, straight away — no restart."
+                        separator: false
+                        enabled: false
+                    }
+
+                    SettingRow {
+                        visible: Displays.lastError !== ""
+                        label: "Last error"
+                        hint: Displays.lastError
+                        separator: false
+                        HudButton {
+                            text: "DISMISS"
+                            onClicked: Displays.clearError()
                         }
                     }
                 }

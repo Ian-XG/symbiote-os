@@ -87,8 +87,21 @@ fonts-jetbrains-mono
 # the fallback for anything that relies on the desktop providing one.
 hicolor-icon-theme
 adwaita-icon-theme
-# SVG icons are common; without this Qt loads the PNG variants only.
+# SVG icons are common; without these Qt cannot decode one at all.
+#
+# libqt6svg6 alone was not enough and looked like it was. It ships the
+# renderer, not the QImageIOPlugin that teaches QImage the format, so every
+# .svg the launcher reached for failed with "Unsupported image format" and
+# fell back to the line-art glyph. Files, Papers, the archive manager and the
+# image viewer all ship SVG only, so all four lost their real icon — which is
+# the opposite of what this image is meant to do with non-Symbiote apps.
 libqt6svg6
+qt6-svg-plugins
+# Reads and rewrites the monitor layout. labwc speaks wlr-output-management;
+# this is that protocol's reference client, and it is what the Screens page in
+# Settings drives. Without it the page can still list the displays — Qt knows
+# them — but it says so and offers nothing it cannot deliver.
+wlr-randr
 # Volume and brightness. wpctl ships with wireplumber, which is already here;
 # brightnessctl
 # symbiote-persist auto adds a partition in the free space of the boot medium:

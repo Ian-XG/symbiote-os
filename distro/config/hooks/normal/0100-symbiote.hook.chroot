@@ -27,6 +27,20 @@ adduser symbiote render
 adduser symbiote netdev      # lets NetworkManager accept its wifi calls
 adduser symbiote bluetooth   # lets BlueZ accept pairing calls
 
+# Re-apply /etc/skel over the home directory.
+#
+# adduser copies skel once, at the moment the account is created, and whether
+# that happens before or after live-build has laid down config/includes.chroot
+# is an ordering detail of live-build rather than a promise. Getting it wrong
+# would not fail the build: it would produce an image where the shipped
+# defaults — the terminal theme, the GTK styling, the desktop-entry overrides
+# that hide duplicate launcher entries — were simply absent, with nothing
+# anywhere to say so. Copying again here costs a few kilobytes and settles it.
+if [ -d /etc/skel ]; then
+	cp -rn /etc/skel/. /home/symbiote/ 2>/dev/null || true
+	chown -R symbiote:symbiote /home/symbiote
+fi
+
 chmod 755 /usr/local/bin/symbiote-session
 chmod 755 /usr/local/bin/symbiote-shell-run
 

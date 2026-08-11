@@ -300,10 +300,16 @@ static QString glyphFor(const QString &bin, const QString &categories,
    the two flags that say "do not show me". */
 void AppLauncher::scanDesktopEntries()
 {
+    /* Highest precedence first. This used to run the other way round, which
+       looks harmless and is not: freedesktop says a file in the home directory
+       replaces the system one of the same name, and scanning the system first
+       meant the system copy was already registered by the time the override
+       was read. Every user override was silently ignored — including the ones
+       whose whole purpose is to say NoDisplay=true and hide an entry. */
     const QStringList dirs = {
-        QStringLiteral("/usr/share/applications"),
+        QDir::homePath() + QStringLiteral("/.local/share/applications"),
         QStringLiteral("/usr/local/share/applications"),
-        QDir::homePath() + QStringLiteral("/.local/share/applications")
+        QStringLiteral("/usr/share/applications")
     };
 
     QSet<QString> seen;
@@ -315,8 +321,16 @@ void AppLauncher::scanDesktopEntries()
             if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
                 continue;
 
-            QString name, exec, categories, iconName;
+            QString name, exec, categories, iconName, keywords, generic;
             bool hidden = false, inDesktopEntry = false;
+
+            /* The desktop-entry ID, which is what precedence and de-duplication
+               are defined on — not the Name. Keying on the Name meant two
+               unrelated programs that happen to share one lost a coin toss,
+               and an override never matched the entry it was overriding. */
+            const QString id = fi.completeBaseName();
+            if (seen.contains(id))
+                continue;
             QTextStream in(&f);
             while (!in.atEnd()) {
                 const QString line = in.readLine().trimmed();
@@ -335,6 +349,15 @@ void AppLauncher::scanDesktopEntries()
                     categories = line.mid(11);
                 else if (line.startsWith(QLatin1String("Icon=")) && iconName.isEmpty())
                     iconName = line.mid(5);
+                /* Searchable synonyms. Without these the filter matched only
+                   the program's own name, so "terminal" found nothing — the
+                   terminal here is called foot — and neither did "browser",
+                   "pdf" or "archive". Every one of those words is already in
+                   the desktop entry; nothing was reading them. */
+                else if (line.startsWith(QLatin1String("Keywords=")) && keywords.isEmpty())
+                    keywords = line.mid(9);
+                else if (line.startsWith(QLatin1String("GenericName=")) && generic.isEmpty())
+                    generic = line.mid(12);
                 else if (line == QLatin1String("NoDisplay=true")
                          || line == QLatin1String("Hidden=true"))
                     hidden = true;
@@ -343,7 +366,14 @@ void AppLauncher::scanDesktopEntries()
                     hidden = true;
             }
 
-            if (hidden || name.isEmpty() || exec.isEmpty())
+            if (hidden) {
+                /* Claim the ID anyway. An override whose entire content is
+                   NoDisplay=true exists to bury the system entry, and letting
+                   the system copy through afterwards would defeat it. */
+                seen.insert(id);
+                continue;
+            }
+            if (name.isEmpty() || exec.isEmpty())
                 continue;
 
             /* Strip the field codes (%f, %U, …). They are placeholders for
@@ -359,17 +389,19 @@ void AppLauncher::scanDesktopEntries()
             if (QStandardPaths::findExecutable(bin).isEmpty())
                 continue;
 
-            const QString key = name.toLower();
-            if (seen.contains(key))
-                continue;
-            seen.insert(key);
+            seen.insert(id);
 
             QVariantMap row;
-            row["id"] = QStringLiteral("xdg:") + fi.completeBaseName();
+            row["id"] = QStringLiteral("xdg:") + id;
             row["title"] = name.toUpper();
             row["short"] = name.toUpper();
             row["exec"] = exec;
             row["categories"] = categories;
+            /* Everything the filter may match on besides the name, flattened
+               into one string. Semicolons are separators in a desktop entry;
+               spaces here so a search for one word does not have to know it. */
+            row["search"] = (keywords + QLatin1Char(';') + generic + QLatin1Char(';') + bin)
+                                .replace(QLatin1Char(';'), QLatin1Char(' ')).simplified();
             row["glyph"] = glyphFor(bin, categories, name);
             // Empty when the theme has nothing: QML falls back to the glyph.
             row["icon"] = findIcon(iconName);
