@@ -39,12 +39,48 @@ Window {
     signal powerRequested()
     signal mediaRequested()
 
-    screen: targetScreen
-    visible: true
-    visibility: Window.FullScreen
+    /* Placement, and why none of this is declarative.
+     *
+     * Wayland gives a client no way to say which output a window belongs on.
+     * The single exception is going fullscreen: xdg_toplevel.set_fullscreen
+     * takes an output, and Qt passes whichever screen the window is on at the
+     * moment it makes that call. Declaring `screen` and `visibility` side by
+     * side leaves the order to QML, and when the fullscreen went first the
+     * window landed on the compositor's default output — which is the one
+     * already showing the desktop. A second desktop over the first, glitching
+     * as the two fought over the same panel.
+     *
+     * So: assign the screen, then go fullscreen, in that order, explicitly.
+     */
     color: Theme.bgVoid
     title: "Symbiote Shell"
     flags: Qt.Window
+    visible: false
+
+    function placeOnTarget() {
+        if (!sec.targetScreen)
+            return
+        sec.screen = sec.targetScreen
+        sec.visibility = Window.FullScreen
+        sec.visible = true
+    }
+
+    Component.onCompleted: sec.placeOnTarget()
+    onTargetScreenChanged: sec.placeOnTarget()
+
+    /* Last line of defence. If the window has ended up somewhere other than the
+       screen it was made for, it hides rather than covering whatever is there.
+       Every version of this fault has looked the same from the outside — an
+       empty desktop on top of the real one — and every one of them would have
+       been caught here. */
+    onScreenChanged: {
+        if (sec.visible && sec.targetScreen && sec.screen
+            && sec.screen.name !== sec.targetScreen.name) {
+            console.warn("displays: extra desktop for " + sec.targetScreen.name
+                         + " was placed on " + sec.screen.name + " — hiding it")
+            sec.visible = false
+        }
+    }
 
     readonly property real barSize: Prefs.taskbarThickness * sec.s
 
