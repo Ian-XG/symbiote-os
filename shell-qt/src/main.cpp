@@ -17,6 +17,7 @@
 #include "NetworkService.h"
 #include "BluetoothService.h"
 #include "DisplayService.h"
+#include "TimeService.h"
 #include "PowerService.h"
 #include "AppLauncher.h"
 #include "PacedAnimationDriver.h"
@@ -99,6 +100,7 @@ int main(int argc, char *argv[])
     NetworkService network;
     BluetoothService bluetooth;
     DisplayService displays;
+    TimeService timeService;
     PowerService power;
     AppLauncher apps;
     PowerActions powerActions;
@@ -116,6 +118,7 @@ int main(int argc, char *argv[])
     ctx->setContextProperty(QStringLiteral("Network"), &network);
     ctx->setContextProperty(QStringLiteral("Bluetooth"), &bluetooth);
     ctx->setContextProperty(QStringLiteral("Displays"), &displays);
+    ctx->setContextProperty(QStringLiteral("Clock"), &timeService);
     ctx->setContextProperty(QStringLiteral("Power"), &power);
     ctx->setContextProperty(QStringLiteral("Apps"), &apps);
     ctx->setContextProperty(QStringLiteral("PowerActions"), &powerActions);

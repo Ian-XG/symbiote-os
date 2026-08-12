@@ -1,0 +1,85 @@
+# Which program opens what.
+#
+# Nothing shipped this, so every association was whatever the last package to
+# run update-desktop-database happened to register — which meant double-
+# clicking a PDF in Files could open the text editor, and often opened nothing
+# at all, silently. An image full of tools is no use if opening a file is a
+# gamble.
+#
+# /etc/xdg is the system-wide default: a user who changes an association gets
+# their own ~/.config/mimeapps.list and that wins, so nothing here is a
+# straitjacket.
+#
+# Only formats with an application actually installed on this image are listed.
+# An entry pointing at a program that is not here is worse than no entry: the
+# file manager reports it as the handler and then fails to start it.
+
+[Default Applications]
+
+# Documents
+application/pdf=org.gnome.Papers.desktop
+application/x-bzpdf=org.gnome.Papers.desktop
+application/x-gzpdf=org.gnome.Papers.desktop
+application/postscript=org.gnome.Papers.desktop
+application/illustrator=org.gnome.Papers.desktop
+
+# Plain text, and the config and source files that are plain text wearing a hat
+text/plain=org.gnome.TextEditor.desktop
+text/markdown=org.gnome.TextEditor.desktop
+text/csv=org.gnome.TextEditor.desktop
+text/x-log=org.gnome.TextEditor.desktop
+text/x-python=org.gnome.TextEditor.desktop
+text/x-shellscript=org.gnome.TextEditor.desktop
+text/x-csrc=org.gnome.TextEditor.desktop
+text/x-chdr=org.gnome.TextEditor.desktop
+application/json=org.gnome.TextEditor.desktop
+application/xml=org.gnome.TextEditor.desktop
+application/x-yaml=org.gnome.TextEditor.desktop
+application/toml=org.gnome.TextEditor.desktop
+
+# Images
+image/png=org.gnome.eog.desktop
+image/jpeg=org.gnome.eog.desktop
+image/gif=org.gnome.eog.desktop
+image/bmp=org.gnome.eog.desktop
+image/tiff=org.gnome.eog.desktop
+image/webp=org.gnome.eog.desktop
+image/svg+xml=org.gnome.eog.desktop
+image/x-icon=org.gnome.eog.desktop
+
+# Video and audio. mpv takes both, and takes them without a codec hunt.
+video/mp4=mpv.desktop
+video/x-matroska=mpv.desktop
+video/webm=mpv.desktop
+video/quicktime=mpv.desktop
+video/x-msvideo=mpv.desktop
+video/mpeg=mpv.desktop
+audio/mpeg=mpv.desktop
+audio/flac=mpv.desktop
+audio/x-wav=mpv.desktop
+audio/ogg=mpv.desktop
+audio/mp4=mpv.desktop
+audio/x-m4a=mpv.desktop
+
+# Archives
+application/zip=org.gnome.FileRoller.desktop
+application/gzip=org.gnome.FileRoller.desktop
+application/x-tar=org.gnome.FileRoller.desktop
+application/x-compressed-tar=org.gnome.FileRoller.desktop
+application/x-bzip2-compressed-tar=org.gnome.FileRoller.desktop
+application/x-xz-compressed-tar=org.gnome.FileRoller.desktop
+application/x-7z-compressed=org.gnome.FileRoller.desktop
+application/vnd.rar=org.gnome.FileRoller.desktop
+
+# Web
+text/html=firefox-esr.desktop
+application/xhtml+xml=firefox-esr.desktop
+x-scheme-handler/http=firefox-esr.desktop
+x-scheme-handler/https=firefox-esr.desktop
+
+# Folders
+inode/directory=org.gnome.Nautilus.desktop
+
+# Packet captures, which on this image are a first-class document type.
+application/vnd.tcpdump.pcap=org.wireshark.Wireshark.desktop
+application/x-pcapng=org.wireshark.Wireshark.desktop

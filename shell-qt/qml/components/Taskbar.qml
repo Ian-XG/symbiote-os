@@ -36,6 +36,10 @@ Item {
        match. */
     property int band: 72
 
+    /* A sensible default for a bar filling one edge of its parent. Both real
+       callers override all four of x, y, width and height with plain
+       geometry — see the note in Main.qml about what anchoring this thing per
+       edge used to do to the screen. */
     height: vertical ? (parent ? parent.height : 0) : thickness
     width: vertical ? thickness : (parent ? parent.width : 0)
 
@@ -84,24 +88,22 @@ Item {
     // The hairline goes on whichever side faces the desktop.
     Rectangle {
         color: Theme.hairline
-        width: root.vertical ? 1 : parent.width
-        height: root.vertical ? parent.height : 1
-        anchors {
-            left: root.edge === "right" ? parent.left : undefined
-            right: root.edge === "left" ? parent.right : undefined
-            top: root.edge === "bottom" ? parent.top : undefined
-            bottom: root.edge === "top" ? parent.bottom : undefined
-        }
+        width: root.vertical ? 1 : root.width
+        height: root.vertical ? root.height : 1
+        /* Plain coordinates. Four anchors that switch on the edge is the
+           pattern that made the bar itself cover the screen when it moved;
+           the same pattern here would have painted a hairline the size of
+           the desktop across everything. */
+        x: root.edge === "left" ? root.width - 1 : 0
+        y: root.edge === "top" ? root.height - 1 : 0
     }
 
     // ── zone one: the mark, then what is pinned ────────────────
     Item {
         id: leadZone
-        anchors {
-            left: parent.left; top: parent.top
-            right: root.vertical ? parent.right : undefined
-            bottom: root.vertical ? undefined : parent.bottom
-        }
+        // Always the near corner, so this needs no anchors at all.
+        x: 0
+        y: 0
         width: root.vertical ? root.thickness : lead.width + 22
         height: root.vertical ? lead.height + 20 : root.thickness
 
@@ -112,15 +114,27 @@ Item {
                written in, and centring across both put every icon halfway into
                its own label. */
             anchors.verticalCenter: parent.verticalCenter
-            anchors.horizontalCenter: root.vertical ? undefined : parent.horizontalCenter
-            x: root.vertical ? Math.round((root.band - width) / 2) : x
+            /* Centred with a coordinate rather than a switching anchor: on a
+               vertical bar within the icon band, on a horizontal one within
+               the zone. The old form also read `x: ... : x`, a binding on
+               itself, which QML resolves by leaving x wherever it happened to
+               be — so after a move the zone's contents kept the offset from
+               the layout they had just left. */
+            x: root.vertical ? Math.round((root.band - width) / 2)
+                             : Math.round((parent.width - width) / 2)
             /* Grid rather than a Row and a Column with the same children
-               written out twice. With flow LeftToRight it fills rows of
-               `columns`, so one column is a vertical stack; with TopToBottom
-               it fills columns of `rows`, so one row is a horizontal strip. */
-            columns: root.vertical ? 1 : 0
-            rows: root.vertical ? 0 : 1
-            flow: root.vertical ? Grid.LeftToRight : Grid.TopToBottom
+               written out twice.
+
+               Only `columns` is ever set, and it is never zero.
+               Setting rows and columns together looked tidy and was a trap:
+               the two bindings do not update in the same instant, so moving
+               the bar between a horizontal edge and a vertical one passed
+               through a moment where both read 1. A Grid told it has one row
+               and one column drops everything past the first item — the bar
+               kept its shape and its background and simply came back empty.
+               One column stacks; a column count past the item count is a row. */
+            columns: root.vertical ? 1 : 99
+            flow: Grid.LeftToRight
             spacing: 4
 
             // The launcher mark.
@@ -257,27 +271,36 @@ Item {
     // ── zone three: the tray ───────────────────────────────────
     Item {
         id: trayZone
-        anchors {
-            right: parent.right
-            bottom: parent.bottom
-            left: root.vertical ? parent.left : undefined
-            top: root.vertical ? undefined : parent.top
-        }
+        // Always the far corner. Same reasoning as leadZone.
         width: root.vertical ? root.thickness : tray.width + 30
         height: root.vertical ? tray.height + 22 : root.thickness
+        x: root.width - width
+        y: root.height - height
 
         Grid {
             id: tray
             anchors.verticalCenter: parent.verticalCenter
-            anchors.horizontalCenter: root.vertical ? undefined : parent.horizontalCenter
-            x: root.vertical ? Math.round((root.band - width) / 2) : x
+            /* Centred with a coordinate rather than a switching anchor: on a
+               vertical bar within the icon band, on a horizontal one within
+               the zone. The old form also read `x: ... : x`, a binding on
+               itself, which QML resolves by leaving x wherever it happened to
+               be — so after a move the zone's contents kept the offset from
+               the layout they had just left. */
+            x: root.vertical ? Math.round((root.band - width) / 2)
+                             : Math.round((parent.width - width) / 2)
             /* Grid rather than a Row and a Column with the same children
-               written out twice. With flow LeftToRight it fills rows of
-               `columns`, so one column is a vertical stack; with TopToBottom
-               it fills columns of `rows`, so one row is a horizontal strip. */
-            columns: root.vertical ? 1 : 0
-            rows: root.vertical ? 0 : 1
-            flow: root.vertical ? Grid.LeftToRight : Grid.TopToBottom
+               written out twice.
+
+               Only `columns` is ever set, and it is never zero.
+               Setting rows and columns together looked tidy and was a trap:
+               the two bindings do not update in the same instant, so moving
+               the bar between a horizontal edge and a vertical one passed
+               through a moment where both read 1. A Grid told it has one row
+               and one column drops everything past the first item — the bar
+               kept its shape and its background and simply came back empty.
+               One column stacks; a column count past the item count is a row. */
+            columns: root.vertical ? 1 : 99
+            flow: Grid.LeftToRight
             spacing: root.vertical ? 8 : 13
             horizontalItemAlignment: Grid.AlignHCenter
             verticalItemAlignment: Grid.AlignVCenter
@@ -394,8 +417,10 @@ Item {
                 Item { visible: root.vertical; width: 1; height: 3 }
 
                 Text {
-                    anchors.horizontalCenter: root.vertical ? parent.horizontalCenter : undefined
-                    anchors.right: root.vertical ? undefined : parent.right
+                    // Centred on a vertical bar, right-aligned on a horizontal
+                    // one — as a coordinate, for the reason above.
+                    x: root.vertical ? Math.round((parent.width - width) / 2)
+                                     : parent.width - width
                     text: root.clock
                     color: Theme.accent
                     font.family: Theme.mono

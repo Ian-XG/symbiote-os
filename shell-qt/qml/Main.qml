@@ -121,6 +121,15 @@ Window {
             btOpen = true
         } else if (parts[0] === "media") {
             mediaOpen = true
+        } else if (parts[0] === "edge") {
+            /* Capture-only: move the bar *after* the desktop has settled.
+               Starting up on an edge and moving to it are different code
+               paths, and only the second one was broken — the bar ended up
+               holding its old position as well as its new one and covered the
+               screen. A check that only ever started on an edge reported the
+               layout as fine while the reported fault sat untouched. */
+            edgeFlip.to = parts.length > 1 ? parts[1] : "left"
+            edgeFlip.start()
         } else if (parts[0] === "ctx") {
             // Deferred: the capture path resizes the window after the QML
             // loads, so at this point it has no useful size yet.
@@ -269,6 +278,14 @@ Window {
             onPowerRequested: win.powerOpen = !win.powerOpen
             onMediaRequested: win.mediaOpen = !win.mediaOpen
         }
+    }
+
+    // See the "edge" branch above. Does nothing unless a capture asks for it.
+    Timer {
+        id: edgeFlip
+        property string to: "left"
+        interval: 400
+        onTriggered: Prefs.taskbarEdge = edgeFlip.to
     }
 
     Timer {
@@ -814,15 +831,29 @@ Window {
         edge: Prefs.taskbarEdge
         thickness: win.barSize
         band: Prefs.taskbarBase * win.s
-        /* Anchored to whichever edge it has been put on. Two of the four
-           anchors are always undefined, which is how an Item is told to take
-           its size from its own width/height instead of from its anchors. */
-        anchors {
-            left: Prefs.taskbarEdge !== "right" ? parent.left : undefined
-            right: Prefs.taskbarEdge !== "left" ? parent.right : undefined
-            top: Prefs.taskbarEdge !== "bottom" ? parent.top : undefined
-            bottom: Prefs.taskbarEdge !== "top" ? parent.bottom : undefined
-        }
+
+        /* Placed with plain geometry, not anchors, and that is the whole fix
+           for a bar that ate the screen.
+         *
+         * It used to switch anchors per edge, setting the two that did not
+         * apply to undefined. That is the documented way to clear an anchor
+         * and it works at load — every edge looked right on a fresh start.
+         * Changing the edge while running is where it came apart: the anchors
+         * for the old edge did not reliably let go, so moving the bar from the
+         * bottom to the left left it anchored left *and* right *and* top *and*
+         * bottom. Anchored on all four sides an Item fills its parent, so the
+         * bar became the size of the screen — and since the bar paints itself
+         * a 72% black background, the entire desktop went behind a dark sheet
+         * with the icons stranded in the middle of it. It read as the bar
+         * having lost its position; it had actually swallowed the display.
+         *
+         * Four bindings that each compute one number cannot get into that
+         * state. There is nothing to clear.
+         */
+        width:  Prefs.taskbarVertical ? win.barSize : win.width
+        height: Prefs.taskbarVertical ? win.height : win.barSize
+        x: Prefs.taskbarEdge === "right"  ? win.width  - win.barSize : 0
+        y: Prefs.taskbarEdge === "bottom" ? win.height - win.barSize : 0
         z: 30
         openIds: Apps.openIds
         startingIds: Apps.startingIds

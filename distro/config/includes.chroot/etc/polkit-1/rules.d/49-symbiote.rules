@@ -36,5 +36,21 @@ polkit.addRule(function (action, subject) {
         return polkit.Result.YES;
     }
 
+    /* The clock's timezone.
+     *
+     * A live image boots with no zone set, so the desktop clock ran on UTC and
+     * was wrong by however far the operator is from Greenwich. Correcting it
+     * goes through timedated, which authorises through polkit like everything
+     * else here and hit the same missing-session wall — the Settings page
+     * would have offered a control that silently refused.
+     *
+     * set-time itself is not granted: the clock is set from the network, and a
+     * desktop that can silently move the system clock is a nuisance for
+     * anything that keeps timestamps, which on this image is most of it. */
+    if (action.id === "org.freedesktop.timedate1.set-timezone"
+        || action.id === "org.freedesktop.timedate1.set-ntp") {
+        return polkit.Result.YES;
+    }
+
     return undefined;
 });

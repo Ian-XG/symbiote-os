@@ -96,12 +96,11 @@ Window {
         edge: Prefs.taskbarEdge
         thickness: sec.barSize
         band: Prefs.taskbarBase * sec.s
-        anchors {
-            left: Prefs.taskbarEdge !== "right" ? parent.left : undefined
-            right: Prefs.taskbarEdge !== "left" ? parent.right : undefined
-            top: Prefs.taskbarEdge !== "bottom" ? parent.top : undefined
-            bottom: Prefs.taskbarEdge !== "top" ? parent.bottom : undefined
-        }
+        // Geometry, not anchors — see the note in Main.qml.
+        width:  Prefs.taskbarVertical ? sec.barSize : sec.width
+        height: Prefs.taskbarVertical ? sec.height : sec.barSize
+        x: Prefs.taskbarEdge === "right"  ? sec.width  - sec.barSize : 0
+        y: Prefs.taskbarEdge === "bottom" ? sec.height - sec.barSize : 0
         z: 30
         openIds: Apps.openIds
         startingIds: Apps.startingIds

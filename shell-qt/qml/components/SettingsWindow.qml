@@ -822,8 +822,77 @@ Item {
                     SettingRow {
                         label: "Show seconds"
                         hint: "Taskbar clock precision"
-                        separator: false
                         HudToggle { on: Prefs.seconds; onToggled: Prefs.seconds = !Prefs.seconds }
+                    }
+
+                    /* The zone the clock reads in.
+                       A live image starts with none set, which means UTC, which
+                       means the clock in the corner is confidently wrong for
+                       almost everybody who boots it. Nothing in the system
+                       offered to fix that until this. */
+                    SettingRow {
+                        label: "Time zone"
+                        hint: Clock.timezone === ""
+                              ? "Not set — the clock is running on UTC."
+                              : Clock.timezone + "   ·   " + Clock.offset
+                                + (Clock.ntpSynced ? "   ·   synced over the network"
+                                                   : (Clock.ntpEnabled ? "   ·   waiting to sync"
+                                                                       : "   ·   network time off"))
+                        stacked: true
+
+                        Column {
+                            width: parent ? parent.width : 300
+                            spacing: 6
+
+                            HudField {
+                                id: tzSearch
+                                width: parent.width
+                                placeholder: "type a city or region — madrid, mexico, tokyo"
+                            }
+
+                            Repeater {
+                                model: Clock.search(tzSearch.text, 6)
+
+                                delegate: Item {
+                                    id: tzRow
+                                    required property var modelData
+                                    width: parent.width
+                                    height: 26
+
+                                    Text {
+                                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
+                                        text: tzRow.modelData
+                                        color: tzRow.modelData === Clock.timezone
+                                               ? Theme.accent : Theme.textMuted
+                                        font.family: Theme.mono
+                                        font.pixelSize: Theme.size2xs
+                                    }
+
+                                    HudButton {
+                                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                        text: tzRow.modelData === Clock.timezone ? "CURRENT" : "USE"
+                                        enabled: tzRow.modelData !== Clock.timezone
+                                        onClicked: Clock.setTimezone(tzRow.modelData)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        label: "Network time"
+                        hint: "Keeps the clock correct without setting it by hand. "
+                              + "Turning it off leaves the clock wherever it is now."
+                        separator: Clock.lastError !== ""
+                        HudToggle { on: Clock.ntpEnabled; onToggled: Clock.setNtp(!Clock.ntpEnabled) }
+                    }
+
+                    SettingRow {
+                        visible: Clock.lastError !== ""
+                        label: "Last error"
+                        hint: Clock.lastError
+                        separator: false
+                        HudButton { text: "DISMISS"; onClicked: Clock.clearError() }
                     }
                 }
             }
@@ -1029,9 +1098,14 @@ Item {
         }
 
         Repeater {
+            /* The four hit areas, inset so they do not overlap. The top and
+               bottom strips used to run the full width and start at the same
+               corner as the left one, so the top-left of the control answered
+               to whichever had the higher z rather than to what was under the
+               pointer — aiming at "top" near the corner selected "left". */
             model: [
-                { v: "top",    x: 5,   y: 5,   w: 204, h: 17 },
-                { v: "bottom", x: 5,   y: 96,  w: 204, h: 17 },
+                { v: "top",    x: 31,  y: 5,   w: 152, h: 17 },
+                { v: "bottom", x: 31,  y: 96,  w: 152, h: 17 },
                 { v: "left",   x: 5,   y: 5,   w: 25,  h: 108 },
                 { v: "right",  x: 184, y: 5,   w: 25,  h: 108 }
             ]
