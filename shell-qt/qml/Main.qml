@@ -311,106 +311,46 @@ Window {
      * so a second screen lights up as soon as it is attached instead of at the
      * next restart of the shell.
      */
-    /* Capture-only. A second monitor cannot be conjured in the build container
-       or in VirtualBox without guest additions, so the one failure that would
-       matter — SecondaryShell failing to load and leaving the extra monitor
-       blank — could not be reached by any check. With this set, the primary
-       screen is treated as a secondary one too: the window it builds lands on
-       top of the desktop, which is useless to look at but does prove the
-       component resolves and draws. */
-    property bool forceSecondary: String(openAtStart).split(":")[0] === "dual"
-
-    readonly property var secondaryScreens: {
-        var all = Qt.application.screens
-        var primary = Displays.primaryName        // also the change dependency
-        if (win.forceSecondary)
-            return all
-
-        /* Fail closed. This used to read
-               !win.screen || all[i].name !== win.screen.name
-           so when the window could not say which screen it was on, *every*
-           screen counted as an extra one — including the one already showing
-           the desktop. On a MacBook whose internal panel enumerates as DP-3
-           that is exactly what happened: a second desktop, with only a
-           wallpaper and a taskbar on it, painted over the real one. The name
-           in the middle of it was the only clue.
-           With no primary to compare against there is now nothing to add. */
-        if (!primary)
-            return []
-
-        // The primary's geometry, to recognise anything sitting on top of it.
-        var base = null
-        for (var j = 0; j < Displays.screens.length; j++)
-            if (Displays.screens[j].primary) base = Displays.screens[j]
-
-        function coversPrimary(name) {
-            if (!base) return false
-            for (var k = 0; k < Displays.screens.length; k++) {
-                var r = Displays.screens[k]
-                if (r.name !== name) continue
-                return r.x === base.x && r.y === base.y
-                    && r.width === base.width && r.height === base.height
-            }
-            return false
-        }
-
-        var out = []
-        for (var i = 0; i < all.length; i++) {
-            if (all[i].name === primary)
-                continue
-            /* Mirrored and phantom outputs report the primary's own geometry.
-               Covering the desktop with a copy of itself is the same fault by
-               another route. */
-            if (coversPrimary(all[i].name))
-                continue
-            out.push(all[i])
-        }
-        return out
-    }
-
-    /* Says what it decided, and why, in the session log.
-       This is the fault that put a second empty desktop over the real one on a
-       MacBook and there was nothing anywhere to say it had happened — the only
-       evidence was the monitor's name showing through the middle of the
-       screen. One line at startup makes the next occurrence a grep. */
-    /* The binding hands back a fresh array every time it re-evaluates, so the
-       change signal fires whether or not the answer moved. Logging on the
-       signal alone printed the same line four times at startup, and a log that
-       repeats itself is how real messages get skipped. */
+    /* What the shell sees, in the session log, once per change.
+       Kept after the extra-monitor desktop was removed: when the next display
+       report arrives this line is the difference between knowing how many
+       outputs Qt found and guessing at it, which is what the last three
+       attempts at this were. */
     property string lastScreenReport: ""
-    onSecondaryScreensChanged: {
-        var names = []
-        for (var i = 0; i < win.secondaryScreens.length; i++)
-            names.push(win.secondaryScreens[i].name)
+    function reportScreens() {
         var line = "displays: primary=" + Displays.primaryName
-                 + " of " + Displays.count
-                 + ", extra desktops on [" + names.join(", ") + "]"
+                 + " of " + Displays.count + " (no extra desktops by design)"
         if (line === win.lastScreenReport)
             return
         win.lastScreenReport = line
         console.info(line)
     }
-
-    Instantiator {
-        model: win.secondaryScreens
-        delegate: SecondaryShell {
-            targetScreen: modelData
-            s: win.s
-            clockText: win.clockText
-            dateText: win.dateText
-            launcherOpen: win.launcherOpen
-            wifiConnected: win.wifiOn
-            wifiSsid: win.wifiName
-            /* The panels stay on the primary screen. Opening a second launcher
-               on each monitor would mean two of them on screen at once, each
-               with its own idea of what is selected. */
-            onMenuToggled: win.launcherOpen = !win.launcherOpen
-            onWifiRequested: win.wifiOpen = !win.wifiOpen
-            onPowerRequested: win.powerOpen = !win.powerOpen
-            onMediaRequested: win.mediaOpen = !win.mediaOpen
-            onLaunchRequested: function (id) { win.activateOrLaunch(id) }
-        }
+    Connections {
+        target: Displays
+        function onChanged() { win.reportScreens() }
     }
+
+    /* There is no desktop on a second monitor, and that is deliberate.
+     *
+     * There was one: a wallpaper and a taskbar on every extra output. It was
+     * removed after breaking the primary display three times on real hardware,
+     * each time the same way — an empty desktop painted on top of the real one,
+     * the two of them fighting over the same panel.
+     *
+     * The cause is structural, not a slip. Wayland gives a client no way to
+     * say which output a window belongs on; the only lever is
+     * xdg_toplevel.set_fullscreen, which takes an output but depends on Qt
+     * sending the right one at the right moment. Two fixes went out on that
+     * theory and neither held, and none of it can be reproduced here: no
+     * second output exists in the build container or in VirtualBox without
+     * guest additions. Shipping a third guess at a fault that costs the
+     * operator their screen is not a trade worth making.
+     *
+     * Doing it properly means wlr-layer-shell, which can target an output and
+     * is what every real Wayland panel uses — and which Qt does not speak. The
+     * Screens page in Settings stays: it reads the layout and drives
+     * wlr-randr, and neither of those puts a window anywhere.
+     */
 
     // See the "edge" branch above. Does nothing unless a capture asks for it.
     Timer {

@@ -109,7 +109,6 @@ set(SYMBIOTE_QML
     qml/components/ContextMenu.qml
     qml/components/WifiPopup.qml
     qml/components/BluetoothPopup.qml
-    qml/components/SecondaryShell.qml
     qml/components/BatteryGauge.qml
     qml/components/PowerMenu.qml
     qml/components/AppIcon.qml
