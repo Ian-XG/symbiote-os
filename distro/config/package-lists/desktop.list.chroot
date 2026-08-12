@@ -113,6 +113,19 @@ wlr-randr
 # itself the moment the machine has a network, which also spares most people
 # from having to find the timezone page at all.
 systemd-timesyncd
+
+# The commands applications shell out to.
+#
+# All three were missing and each one fails quietly. Without xdg-open a link
+# clicked in a terminal, or "open containing folder" in a download, does
+# nothing at all — the caller gets "command not found" on a stream nobody is
+# reading. notify-send is how scripts and the odd application raise a
+# notification now that the shell answers org.freedesktop.Notifications.
+# lspci is the first thing anyone reaches for on a machine whose graphics or
+# wireless is not working, which on a live image is the whole point.
+xdg-utils
+libnotify-bin
+pciutils
 # Screen backlight. wpctl handles volume and ships with wireplumber, which is
 # already above; brightness needs its own tool.
 brightnessctl

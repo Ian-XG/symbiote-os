@@ -801,6 +801,22 @@ Window {
         z: 80
     }
 
+    /* Notifications raised by applications, over the bus every Linux program
+       already uses. Until this the stack above the taskbar could only ever
+       show what the shell itself had to say — a download finishing or a job
+       failing went nowhere at all. */
+    Connections {
+        target: Notify
+        function onPosted(id, appName, summary, body, error, timeoutMs) {
+            // Summary is the headline and body the detail; senders use either
+            // or both, so joining them is the only form that never loses text.
+            var text = summary
+            if (body) text = text ? text + " — " + body : body
+            if (!text) text = appName
+            toasts.push(text, error)
+        }
+    }
+
     function notify(text, isError) { toasts.push(text, isError === true) }
 
     /* Everything that used to happen silently now says so. A launch that fails

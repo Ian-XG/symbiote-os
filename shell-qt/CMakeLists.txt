@@ -62,6 +62,7 @@ qt_add_executable(symbiote-shell-qt
     src/BluetoothService.cpp
     src/DisplayService.cpp
     src/TimeService.cpp
+    src/NotificationService.cpp
     src/BluetoothAgent.cpp
     src/PacedAnimationDriver.h
     src/PowerActions.h
