@@ -1,9 +1,24 @@
 import QtQuick
 import Symbiote
 
-/* Bluetooth: power the radio, scan, pair, connect, forget.
-   The Qt port had no Bluetooth at all — the taskbar could only ever report
-   "NO ADAPTER" because nothing was reading org.bluez. */
+/* Bluetooth: power the radio, scan, connect, forget.
+ *
+ * Devices appeared here and could not be connected to, for three reasons that
+ * all had to go:
+ *
+ *  - The only action offered on a newly discovered device was PAIR. Connecting
+ *    was a second click that appeared later, on a row that had meanwhile moved,
+ *    and if you never pressed it the device sat paired and silent. There is one
+ *    button now, and it pairs, trusts and connects.
+ *
+ *  - One global busy flag disabled every button on every row. While anything
+ *    was working, nothing could be touched — and a call that never returned
+ *    left the whole panel dead until the shell restarted.
+ *
+ *  - Devices that ask for a PIN were rejected outright, because there was
+ *    nowhere to type one. Older keyboards, car stereos and speakers are almost
+ *    all of these.
+ */
 Item {
     id: root
 
@@ -20,7 +35,7 @@ Item {
         // ── header ─────────────────────────────────────────────
         Item {
             width: parent.width
-            height: 52
+            height: 54
 
             Column {
                 anchors.verticalCenter: parent.verticalCenter
@@ -52,7 +67,7 @@ Item {
             Row {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 8
+                spacing: Theme.space3
 
                 HudButton {
                     visible: Bluetooth.present
@@ -78,68 +93,116 @@ Item {
            holds the call open until it is answered; this is where that answer
            comes from. Nothing is auto-accepted — otherwise anything in range
            could pair itself with the laptop sitting on a desk. */
-        Rectangle {
-            visible: Bluetooth.pendingPath !== ""
+        Item {
             width: parent.width
-            height: visible ? 62 : 0
-            color: Theme.tint(0.08)
-            border.width: 1
-            border.color: Theme.accent
+            height: Bluetooth.pendingPath !== "" ? prompt.height + Theme.space3 : 0
+            clip: true
+            Behavior on height { NumberAnimation { duration: Prefs.dur(Theme.durFast)
+                                                   easing.type: Theme.easeOut } }
 
-            Column {
-                anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
-                spacing: 3
-                Text {
-                    text: Bluetooth.pendingNeedsAnswer
-                          ? (Bluetooth.pendingCode ? "Confirm this code matches the other device"
-                                                   : "Allow this device to pair?")
-                          : "Type this code on the other device"
-                    color: Theme.textBody
-                    font.family: Theme.mono
-                    font.pixelSize: Theme.sizeXs
-                }
-                Text {
-                    visible: Bluetooth.pendingCode !== ""
-                    text: Bluetooth.pendingCode
-                    color: Theme.accent
-                    font.family: Theme.mono
-                    font.pixelSize: Theme.sizeLg
-                    font.letterSpacing: Theme.trackWidest
-                }
-            }
+            Rectangle {
+                id: prompt
+                width: parent.width
+                y: Theme.space3
+                height: Bluetooth.pendingNeedsInput ? 96 : 66
+                color: Theme.tint(0.08)
+                border.width: 1
+                border.color: Theme.accent
 
-            Row {
-                visible: Bluetooth.pendingNeedsAnswer
-                anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                spacing: 8
-                HudButton {
-                    text: "CONFIRM"
-                    onClicked: Bluetooth.confirmPairing(true)
+                Column {
+                    anchors { left: parent.left; leftMargin: 12; top: parent.top; topMargin: 11
+                              right: promptButtons.left; rightMargin: 12 }
+                    spacing: 5
+
+                    Text {
+                        width: parent.width
+                        text: Bluetooth.pendingNeedsInput
+                              ? (Bluetooth.pendingInputNumeric
+                                 ? "Type the passkey shown on the other device"
+                                 : "Type the device's PIN — usually 0000 or 1234, "
+                                   + "or printed on a label")
+                              : Bluetooth.pendingNeedsAnswer
+                              ? (Bluetooth.pendingCode ? "Confirm this code matches the other device"
+                                                       : "Allow this device to pair?")
+                              : "Type this code on the other device"
+                        color: Theme.textBody
+                        font.family: Theme.mono
+                        font.pixelSize: Theme.sizeXs
+                        wrapMode: Text.WordWrap
+                    }
+                    Text {
+                        visible: Bluetooth.pendingCode !== ""
+                        text: Bluetooth.pendingCode
+                        color: Theme.accent
+                        font.family: Theme.mono
+                        font.pixelSize: Theme.sizeLg
+                        font.letterSpacing: Theme.trackWidest
+                    }
+                    HudField {
+                        id: pinField
+                        visible: Bluetooth.pendingNeedsInput
+                        width: 180
+                        label: "pin"
+                        placeholder: Bluetooth.pendingInputNumeric ? "digits" : "code"
+                        numeric: Bluetooth.pendingInputNumeric
+                        maximumLength: 16
+                        onAccepted: function (t) { Bluetooth.submitPairingCode(t) }
+                    }
                 }
-                HudButton {
-                    text: "REJECT"
-                    danger: true
-                    onClicked: Bluetooth.confirmPairing(false)
+
+                Row {
+                    id: promptButtons
+                    anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                    spacing: Theme.space3
+
+                    HudButton {
+                        visible: Bluetooth.pendingNeedsInput
+                        text: "SEND"
+                        onClicked: Bluetooth.submitPairingCode(pinField.text)
+                    }
+                    HudButton {
+                        visible: Bluetooth.pendingNeedsAnswer
+                        text: "CONFIRM"
+                        onClicked: Bluetooth.confirmPairing(true)
+                    }
+                    HudButton {
+                        visible: Bluetooth.pendingNeedsAnswer || Bluetooth.pendingNeedsInput
+                        text: "REJECT"
+                        danger: true
+                        onClicked: {
+                            if (Bluetooth.pendingNeedsInput) Bluetooth.submitPairingCode("")
+                            else Bluetooth.confirmPairing(false)
+                        }
+                    }
                 }
             }
         }
 
         // ── error ──────────────────────────────────────────────
-        Rectangle {
-            visible: Bluetooth.lastError !== ""
+        Item {
             width: parent.width
-            height: visible ? btErr.implicitHeight + 18 : 0
-            color: Qt.rgba(1, 0.09, 0.27, 0.08)
-            border.width: 1
-            border.color: Theme.alert
-            Text {
-                id: btErr
-                anchors { fill: parent; margins: 9 }
-                text: Bluetooth.lastError
-                color: Theme.alert
-                font.family: Theme.mono
-                font.pixelSize: Theme.size2xs
-                wrapMode: Text.WordWrap
+            height: Bluetooth.lastError !== "" ? btErrBox.height + Theme.space3 : 0
+            clip: true
+            Behavior on height { NumberAnimation { duration: Prefs.dur(Theme.durFast) } }
+
+            Rectangle {
+                id: btErrBox
+                width: parent.width
+                y: Theme.space3
+                height: btErr.implicitHeight + 20
+                color: Qt.rgba(1, 0.09, 0.27, 0.08)
+                border.width: 1
+                border.color: Theme.alert
+                Text {
+                    id: btErr
+                    anchors { fill: parent; margins: 10 }
+                    text: Bluetooth.lastError
+                    color: Theme.alert
+                    font.family: Theme.mono
+                    font.pixelSize: Theme.size2xs
+                    wrapMode: Text.WordWrap
+                    lineHeight: 1.35
+                }
             }
         }
 
@@ -162,43 +225,65 @@ Item {
         Text {
             visible: Bluetooth.present && Bluetooth.powered
                      && Bluetooth.devices.length === 0
+            width: parent.width
             topPadding: 18
             text: "Nothing found yet. Press SCAN, and put the device into pairing mode."
             color: Theme.textMuted
             font.family: Theme.mono
             font.pixelSize: Theme.sizeXs
+            wrapMode: Text.WordWrap
         }
 
         // ── device list ────────────────────────────────────────
         ListView {
+            id: btList
             width: parent.width
-            height: Math.min(260, contentHeight)
+            height: Math.max(0, root.height - y)
             clip: true
             model: Bluetooth.powered ? Bluetooth.devices : []
             interactive: contentHeight > height
 
+            displaced: Transition {
+                NumberAnimation { properties: "y"; duration: Prefs.dur(Theme.durFast)
+                                  easing.type: Theme.easeOut }
+            }
+
             delegate: Column {
+                id: devRow
                 required property var modelData
                 width: ListView.view.width
 
+                readonly property bool isSel: root.selected === devRow.modelData.path
+                // Only this row is busy; every other row stays usable.
+                readonly property bool working: Bluetooth.busy
+                                                && Bluetooth.busyPath === devRow.modelData.path
+
                 Item {
                     width: parent.width
-                    height: 34
+                    height: 36
 
-                    readonly property bool isSel: root.selected === modelData.path
-
+                    HoverHandler { id: devHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler {
-                        onTapped: root.selected = parent.isSel ? "" : modelData.path
+                        onTapped: root.selected = devRow.isSel ? "" : devRow.modelData.path
                     }
 
                     Rectangle {
                         anchors.fill: parent
-                        color: parent.isSel ? Theme.tint(0.08) : "transparent"
+                        color: devRow.isSel ? Theme.tint(0.09)
+                             : devHover.hovered ? Theme.tint(0.05) : "transparent"
+                        Behavior on color { ColorAnimation { duration: Prefs.dur(Theme.durInstant) } }
+                    }
+                    Rectangle {
+                        visible: devRow.modelData.connected
+                        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                        width: 2
+                        color: Theme.accent
                     }
 
                     Row {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        spacing: 9
+                        anchors { left: parent.left; leftMargin: Theme.space3
+                                  verticalCenter: parent.verticalCenter }
+                        spacing: Theme.space3
 
                         // Same four-bar read as Wi-Fi. RSSI is dBm: -50 is
                         // across the desk, -90 is barely there.
@@ -208,13 +293,16 @@ Item {
                             Repeater {
                                 model: 4
                                 Rectangle {
+                                    required property int index
                                     width: 3
                                     height: 4 + index * 3
                                     anchors.bottom: parent.bottom
                                     color: {
-                                        if (modelData.rssi === undefined || modelData.rssi === null)
+                                        if (devRow.modelData.rssi === undefined
+                                            || devRow.modelData.rssi === null)
                                             return Theme.line
-                                        var q = Math.max(0, Math.min(100, 2 * (modelData.rssi + 100)))
+                                        var q = Math.max(0, Math.min(100,
+                                                    2 * (devRow.modelData.rssi + 100)))
                                         return index < Math.max(1, Math.ceil(q / 25))
                                                ? Theme.accent : Theme.line
                                     }
@@ -222,30 +310,45 @@ Item {
                             }
                         }
                         Text {
-                            text: (modelData.connected ? "● " : "") + modelData.name
-                            color: modelData.connected ? Theme.accent : Theme.textBody
+                            text: devRow.modelData.name
+                            color: devRow.modelData.connected ? Theme.accent : Theme.textBody
                             font.family: Theme.mono
                             font.pixelSize: Theme.sizeXs
                             anchors.verticalCenter: parent.verticalCenter
                         }
+                        Rectangle {
+                            visible: devRow.modelData.paired && !devRow.modelData.connected
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: pairedTag.implicitWidth + 10
+                            height: 14
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Theme.line
+                            Text {
+                                id: pairedTag
+                                anchors.centerIn: parent
+                                text: "PAIRED"
+                                color: Theme.textMuted
+                                font.family: Theme.mono
+                                font.pixelSize: 7
+                                font.letterSpacing: 0.8
+                            }
+                        }
                     }
 
                     Row {
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        spacing: 10
+                        anchors { right: parent.right; rightMargin: Theme.space3
+                                  verticalCenter: parent.verticalCenter }
+                        spacing: Theme.space4
                         Text {
-                            text: modelData.icon || "device"
+                            text: devRow.modelData.icon || "device"
                             color: Theme.textMuted
                             font.family: Theme.mono; font.pixelSize: Theme.size2xs
                         }
                         Text {
-                            text: modelData.paired ? "PAIRED" : "NEW"
-                            color: Theme.textMuted
-                            font.family: Theme.mono; font.pixelSize: Theme.size2xs
-                        }
-                        Text {
-                            text: (modelData.rssi === undefined || modelData.rssi === null)
-                                  ? "—" : modelData.rssi + " dBm"
+                            text: (devRow.modelData.rssi === undefined
+                                   || devRow.modelData.rssi === null)
+                                  ? "—" : devRow.modelData.rssi + " dBm"
                             color: Theme.textMuted
                             font.family: Theme.mono; font.pixelSize: Theme.size2xs
                         }
@@ -261,83 +364,55 @@ Item {
                 // ── actions ────────────────────────────────────
                 Item {
                     width: parent.width
-                    height: visible ? 40 : 0
-                    visible: root.selected === modelData.path
+                    height: devRow.isSel ? 46 : 0
+                    clip: true
+                    visible: height > 0
+                    Behavior on height { NumberAnimation { duration: Prefs.dur(Theme.durFast)
+                                                           easing.type: Theme.easeOut } }
 
                     Text {
-                        anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                        text: modelData.address
+                        anchors { left: parent.left; leftMargin: Theme.space3
+                                  verticalCenter: parent.verticalCenter }
+                        text: devRow.modelData.address
                         color: Theme.textMuted
                         font.family: Theme.mono
                         font.pixelSize: Theme.size2xs
                     }
 
                     Row {
-                        anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                        spacing: 8
+                        anchors { right: parent.right; rightMargin: Theme.space3
+                                  verticalCenter: parent.verticalCenter }
+                        spacing: Theme.space3
 
+                        /* One button. It pairs first when it has to — which is
+                           the whole difference between a device you can list
+                           and a device you can use. */
                         HudButton {
-                            visible: !modelData.paired
-                            text: Bluetooth.busy ? "PAIRING…" : "PAIR"
-                            enabled: !Bluetooth.busy
-                            onClicked: Bluetooth.pair(modelData.path)
+                            visible: !devRow.modelData.connected
+                            text: "CONNECT"
+                            busy: devRow.working
+                            busyText: devRow.modelData.paired ? "CONNECTING…" : "PAIRING…"
+                            onClicked: Bluetooth.connectDevice(devRow.modelData.path)
                         }
                         HudButton {
-                            visible: modelData.paired && !modelData.connected
-                            text: Bluetooth.busy ? "CONNECTING…" : "CONNECT"
-                            enabled: !Bluetooth.busy
-                            onClicked: Bluetooth.connectDevice(modelData.path)
-                        }
-                        HudButton {
-                            visible: modelData.connected
+                            visible: devRow.modelData.connected
                             text: "DISCONNECT"
-                            onClicked: Bluetooth.disconnectDevice(modelData.path)
+                            busy: devRow.working
+                            busyText: "…"
+                            onClicked: Bluetooth.disconnectDevice(devRow.modelData.path)
                         }
                         HudButton {
-                            visible: modelData.paired
+                            visible: devRow.modelData.paired
                             text: "FORGET"
                             danger: true
                             onClicked: {
                                 root.selected = ""
-                                Bluetooth.forget(modelData.path)
+                                Bluetooth.forget(devRow.modelData.path)
                             }
                         }
                     }
                 }
             }
-        }
-    }
-
-    // Same local button as the Wi-Fi panel: no control set pulled in for four
-    // buttons.
-    component HudButton: Item {
-        id: btn
-        property string text: ""
-        property bool danger: false
-        property bool enabled: true
-        signal clicked()
-
-        width: btnLabel.width + 24
-        height: 28
-
-        HoverHandler { id: btnHover; enabled: btn.enabled }
-        TapHandler { enabled: btn.enabled; onTapped: btn.clicked() }
-
-        Rectangle {
-            anchors.fill: parent
-            color: btnHover.hovered ? Theme.tint(0.08) : "transparent"
-            border.width: 1
-            border.color: !btn.enabled ? Theme.line
-                        : btn.danger ? Theme.alert : Theme.accent
-        }
-        Text {
-            id: btnLabel
-            anchors.centerIn: parent
-            text: btn.text
-            color: !btn.enabled ? Theme.textMuted : btn.danger ? Theme.alert : Theme.accent
-            font.family: Theme.mono
-            font.pixelSize: Theme.size2xs
-            font.letterSpacing: Theme.trackWide
         }
     }
 }

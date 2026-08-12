@@ -8,7 +8,6 @@ Item {
     id: root
     signal dismissed()
 
-    property real bottomInset: 0
     property string armed: ""
 
     onVisibleChanged: if (!visible) armed = ""
@@ -21,7 +20,7 @@ Item {
         anchors.fill: parent
         color: Qt.rgba(0, 0, 0, 0.55)
         opacity: root.visible ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+        Behavior on opacity { NumberAnimation { duration: Prefs.dur(Theme.durFast) } }
     }
 
     MouseArea {
@@ -41,20 +40,20 @@ Item {
             origin.x: sheet.width / 2; origin.y: sheet.height / 2
             xScale: root.visible ? 1 : 0.96
             yScale: root.visible ? 1 : 0.96
-            Behavior on xScale { NumberAnimation { duration: Theme.durFast
-                                                   easing.type: Easing.OutCubic } }
-            Behavior on yScale { NumberAnimation { duration: Theme.durFast
-                                                   easing.type: Easing.OutCubic } }
+            Behavior on xScale { NumberAnimation { duration: Prefs.dur(Theme.durFast)
+                                                   easing.type: Theme.easeOut } }
+            Behavior on yScale { NumberAnimation { duration: Prefs.dur(Theme.durFast)
+                                                   easing.type: Theme.easeOut } }
         }
         opacity: root.visible ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
+        Behavior on opacity { NumberAnimation { duration: Prefs.dur(Theme.durFast) } }
 
         MouseArea { anchors.fill: parent }
 
         Rectangle { anchors.fill: parent; color: Theme.bgVoid }
         Rectangle {
             anchors.fill: parent
-            color: Theme.panelStrong
+            color: Theme.surface
             border.width: 1
             border.color: Theme.hairline
         }
@@ -94,7 +93,7 @@ Item {
 
                     readonly property bool isArmed: root.armed === modelData.key
 
-                    HoverHandler { id: rowHover }
+                    HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler {
                         onTapped: {
                             if (row.modelData.immediate) {
@@ -137,7 +136,7 @@ Item {
             Item {
                 width: col.width
                 height: 34
-                HoverHandler { id: cancelHover }
+                HoverHandler { id: cancelHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.dismissed() }
                 Rectangle {
                     anchors.fill: parent

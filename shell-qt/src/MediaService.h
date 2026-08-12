@@ -41,6 +41,11 @@ public:
 
     Q_INVOKABLE void setVolume(int percent);
     Q_INVOKABLE void toggleMute();
+    /* Say which state you want rather than asking for the other one.
+       A toggle driven from a button that also reflects the state races with
+       the two-second poll: press it twice quickly and the second press acts on
+       a reading taken before the first one landed. */
+    Q_INVOKABLE void setMuted(bool muted);
     Q_INVOKABLE void setBrightness(int percent);
     /** Nudge by a step, for the media keys. */
     Q_INVOKABLE void stepVolume(int delta);

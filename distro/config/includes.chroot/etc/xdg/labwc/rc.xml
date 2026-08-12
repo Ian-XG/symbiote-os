@@ -31,15 +31,13 @@
   </theme>
 
   <windowRules>
-    <!-- The shell itself. electron-builder sets app_id from productName. -->
+    <!-- The shell itself. Qt takes the Wayland app_id from the application's
+         desktopFileName, which main.cpp sets to "symbiote-shell". The desktop
+         surface on every extra monitor is another window of the same
+         application, so it matches this rule too and gets the same treatment:
+         behind everything, undecorated, and out of the window switcher. The
+         second rule here matched Electron's productName and is gone with it. -->
     <windowRule identifier="symbiote-shell">
-      <action name="ToggleAlwaysOnBottom"/>
-      <skipTaskbar>yes</skipTaskbar>
-      <skipWindowSwitcher>yes</skipWindowSwitcher>
-      <serverDecoration>no</serverDecoration>
-      <fixedPosition>yes</fixedPosition>
-    </windowRule>
-    <windowRule identifier="Symbiote Shell">
       <action name="ToggleAlwaysOnBottom"/>
       <skipTaskbar>yes</skipTaskbar>
       <skipWindowSwitcher>yes</skipWindowSwitcher>

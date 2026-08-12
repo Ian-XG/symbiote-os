@@ -60,6 +60,9 @@ qt_add_executable(symbiote-shell-qt
     src/ProcessMonitor.cpp
     src/NetworkService.cpp
     src/BluetoothService.cpp
+    src/DisplayService.cpp
+    src/TimeService.cpp
+    src/NotificationService.cpp
     src/BluetoothAgent.cpp
     src/PacedAnimationDriver.h
     src/PowerActions.h
@@ -105,6 +108,7 @@ set(SYMBIOTE_QML
     qml/components/ContextMenu.qml
     qml/components/WifiPopup.qml
     qml/components/BluetoothPopup.qml
+    qml/components/SecondaryShell.qml
     qml/components/BatteryGauge.qml
     qml/components/PowerMenu.qml
     qml/components/AppIcon.qml
@@ -118,6 +122,15 @@ set(SYMBIOTE_QML
     qml/components/DesktopIcons.qml
     qml/components/Taskbar.qml
     qml/components/SettingsWindow.qml
+    qml/components/HudButton.qml
+    qml/components/HudSlider.qml
+    qml/components/HudToggle.qml
+    qml/components/HudDropdown.qml
+    qml/components/HudSegmented.qml
+    qml/components/HudField.qml
+    qml/components/SettingRow.qml
+    qml/components/SettingGroup.qml
+    qml/components/TraySheet.qml
     qml/components/NetworkPanel.qml
 )
 foreach(f IN LISTS SYMBIOTE_QML)

@@ -12,7 +12,6 @@ hydra
 john
 hashcat
 sqlmap
-nikto
 dirb
 gobuster
 masscan
@@ -49,3 +48,93 @@ python3-prompt-toolkit
 python3-rich
 python3-httpx
 python3-yaml
+
+# ── the rest of the kit ─────────────────────────────────────────────────────
+# Chosen for coverage rather than completeness: one or two tools for each thing
+# an operator actually does, not every tool that does it. Everything here is in
+# Debian main — the workflow in .github/workflows/packages.yml checks that on
+# every change, because live-build feeds these lines to apt verbatim and one
+# wrong name fails the build twenty minutes in.
+#
+# Still missing, and still not packaged by Debian: Metasploit, Burp Suite,
+# CrackMapExec, SecLists. See distro/README-tools.md.
+
+# Downloading things the hooks install (Ollama, PentAI).
+curl
+ca-certificates
+
+# ── information gathering ───────────────────────────────────────────────────
+# theHarvester is not in trixie — it lives in Kali, and pip/pipx is the way to
+# get it here. Left out rather than named, so the build does not fail for it.
+dnsrecon
+dnsenum
+netdiscover
+fping
+sslscan
+whatweb
+smbclient
+nbtscan
+onesixtyone
+
+# ── vulnerability analysis ──────────────────────────────────────────────────
+# nikto and wapiti are both absent from trixie — nikto was removed outright,
+# wapiti has no installation candidate. Both are in README-tools.md. lynis is
+# the system auditor that is packaged and installable.
+lynis
+
+# ── web application ─────────────────────────────────────────────────────────
+# gobuster is already listed above; not repeated here.
+ffuf
+wfuzz
+
+# ── password attacks ────────────────────────────────────────────────────────
+medusa
+ncrack
+crunch
+cewl
+
+# ── wireless ────────────────────────────────────────────────────────────────
+reaver
+wifite
+mdk4
+hcxtools
+hcxdumptool
+macchanger
+iw
+
+# ── sniffing and spoofing ───────────────────────────────────────────────────
+# Responder is not packaged in Debian; it is a Kali/GitHub tool. Left out
+# rather than named so the build does not fail for it.
+# mitmproxy has no installation candidate in trixie; `pipx install mitmproxy`
+# is the way to get it. bettercap and dsniff cover the interception need here.
+ettercap-text-only
+dsniff
+bettercap
+netsniff-ng
+
+# ── reverse engineering ─────────────────────────────────────────────────────
+# Neither radare2 nor its fork rizin is in trixie; both are in README-tools.md
+# as external installs. gdb, objdump (binutils), ltrace, strace and binwalk are
+# the packaged coverage. objdump comes with binutils, pulled by build-essential,
+# but naming it makes the disassembler explicit rather than incidental.
+binutils
+gdb
+ltrace
+strace
+binwalk
+hexedit
+
+# ── forensics ───────────────────────────────────────────────────────────────
+sleuthkit
+foremost
+testdisk
+libimage-exiftool-perl
+steghide
+
+# ── post exploitation ───────────────────────────────────────────────────────
+python3-impacket
+rlwrap
+
+# ── anonymity ───────────────────────────────────────────────────────────────
+tor
+torsocks

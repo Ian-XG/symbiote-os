@@ -5,6 +5,7 @@
 #include <QDBusReply>
 #include <QDBusMetaType>
 #include <QDBusArgument>
+#include <QFile>
 
 namespace {
 
@@ -16,6 +17,7 @@ constexpr auto WIFI_IFACE = "org.freedesktop.NetworkManager.Device.Wireless";
 constexpr auto AP_IFACE = "org.freedesktop.NetworkManager.AccessPoint";
 constexpr auto SETTINGS_PATH = "/org/freedesktop/NetworkManager/Settings";
 constexpr auto SETTINGS_IFACE = "org.freedesktop.NetworkManager.Settings";
+constexpr auto CONN_IFACE = "org.freedesktop.NetworkManager.Settings.Connection";
 
 constexpr int DEVICE_TYPE_WIFI = 2;
 
@@ -27,6 +29,29 @@ QVariant prop(const QString &path, const QString &iface, const QString &name)
     props.setTimeout(5000);
     QDBusReply<QVariant> r = props.call("Get", iface, name);
     return r.isValid() ? r.value() : QVariant();
+}
+
+/* The SSID a saved profile is for.
+ *
+ * Read from 802-11-wireless.ssid, which is the network's actual name in bytes,
+ * not from connection.id. The id is a label a human can rename — NetworkManager
+ * itself writes "MyNet 1" when a second profile appears — so matching on it
+ * meant a saved network could stop being recognised as saved, and the panel
+ * asked for the password of a network whose password it already had.
+ */
+QString profileSsid(const QMap<QString, QVariantMap> &cfg)
+{
+    const QVariant raw = cfg.value(QStringLiteral("802-11-wireless"))
+                            .value(QStringLiteral("ssid"));
+    if (raw.isValid()) {
+        const QByteArray bytes = raw.typeId() == QMetaType::QByteArray
+                                     ? raw.toByteArray()
+                                     : raw.toString().toUtf8();
+        if (!bytes.isEmpty())
+            return QString::fromUtf8(bytes);
+    }
+    // A profile with no wireless section is not a Wi-Fi profile at all.
+    return QString();
 }
 
 } // namespace
@@ -41,11 +66,12 @@ NetworkService::NetworkService(QObject *parent)
     m_timer.start(6000);
 }
 
-void NetworkService::setBusy(bool b)
+void NetworkService::setBusy(bool b, const QString &ssid)
 {
-    if (m_busy == b)
+    if (m_busy == b && m_busySsid == ssid)
         return;
     m_busy = b;
+    m_busySsid = b ? ssid : QString();
     emit busyChanged();
 }
 
@@ -73,6 +99,79 @@ QDBusObjectPath NetworkService::wifiDevice()
     return {};
 }
 
+QList<QDBusObjectPath> NetworkService::savedProfiles(const QString &ssid) const
+{
+    QList<QDBusObjectPath> out;
+    QDBusInterface s(NM_SERVICE, SETTINGS_PATH, SETTINGS_IFACE,
+                     QDBusConnection::systemBus());
+    s.setTimeout(5000);
+    QDBusReply<QList<QDBusObjectPath>> conns = s.call("ListConnections");
+    if (!conns.isValid())
+        return out;
+
+    for (const QDBusObjectPath &c : conns.value()) {
+        QDBusInterface ci(NM_SERVICE, c.path(), CONN_IFACE, QDBusConnection::systemBus());
+        ci.setTimeout(5000);
+        QDBusReply<QMap<QString, QVariantMap>> cfg = ci.call("GetSettings");
+        if (cfg.isValid() && profileSsid(cfg.value()) == ssid)
+            out.append(c);
+    }
+    return out;
+}
+
+void NetworkService::reloadSaved()
+{
+    /* Two blocking bus calls per stored profile, so not on every poll.
+     *
+     * The network list refreshes every six seconds; the set of saved profiles
+     * changes when somebody joins or forgets a network, which this service is
+     * told about directly. Rescanning it thirty times a minute would spend
+     * real time on the bus to learn nothing — and each of those calls carries
+     * a five-second timeout, so a wedged NetworkManager would stall the
+     * interface rather than the poll. */
+    m_savedAge = 0;
+
+    QSet<QString> found;
+
+    QDBusInterface s(NM_SERVICE, SETTINGS_PATH, SETTINGS_IFACE,
+                     QDBusConnection::systemBus());
+    s.setTimeout(5000);
+    QDBusReply<QList<QDBusObjectPath>> conns = s.call("ListConnections");
+    if (conns.isValid()) {
+        for (const QDBusObjectPath &c : conns.value()) {
+            QDBusInterface ci(NM_SERVICE, c.path(), CONN_IFACE, QDBusConnection::systemBus());
+            ci.setTimeout(5000);
+            QDBusReply<QMap<QString, QVariantMap>> cfg = ci.call("GetSettings");
+            if (!cfg.isValid())
+                continue;
+            const QString ssid = profileSsid(cfg.value());
+            if (!ssid.isEmpty())
+                found.insert(ssid);
+        }
+    }
+
+    m_saved = found;
+}
+
+bool NetworkService::isSaved(const QString &ssid) const
+{
+    return m_saved.contains(ssid);
+}
+
+bool NetworkService::profilesPersist() const
+{
+    /* NetworkManager writes profiles to /etc/NetworkManager/system-connections.
+       On a live boot that directory is part of the union overlay, and unless a
+       persistence volume is mounted the upper layer is RAM. */
+    QFile mounts(QStringLiteral("/proc/mounts"));
+    if (!mounts.open(QIODevice::ReadOnly | QIODevice::Text))
+        return true;   // not a live boot we can reason about; assume a real disk
+    const QString all = QString::fromUtf8(mounts.readAll());
+    if (!all.contains(QLatin1String("/lib/live/mount")))
+        return true;   // installed system
+    return all.contains(QLatin1String("persistence"));
+}
+
 void NetworkService::refresh()
 {
     m_devicePath = wifiDevice();
@@ -87,6 +186,10 @@ void NetworkService::refresh()
 
     m_available = true;
     m_enabled = prop(NM_PATH, NM_IFACE, "WirelessEnabled").toBool();
+
+    // Roughly every half minute, or straight after anything that changes it.
+    if (m_savedAge++ >= 5)
+        reloadSaved();
 
     QVariantList list;
     if (m_enabled) {
@@ -119,6 +222,10 @@ void NetworkService::refresh()
                 n["band"] = freq > 4000 ? QStringLiteral("5 GHz") : QStringLiteral("2.4 GHz");
                 n["secure"] = (wpa != 0 || rsn != 0);
                 n["connected"] = (ap.path() == activePath);
+                /* The whole point of the rework: the row knows whether this
+                   network is already known, so it can offer JOIN rather than a
+                   password field for a password NetworkManager already has. */
+                n["saved"] = m_saved.contains(ssid);
 
                 if (!best.contains(ssid) || best[ssid]["strength"].toInt() < strength)
                     best[ssid] = n;
@@ -128,7 +235,14 @@ void NetworkService::refresh()
         for (const auto &n : std::as_const(best))
             list.append(n);
         std::sort(list.begin(), list.end(), [](const QVariant &a, const QVariant &b) {
-            return a.toMap()["strength"].toInt() > b.toMap()["strength"].toInt();
+            const QVariantMap x = a.toMap();
+            const QVariantMap y = b.toMap();
+            // Connected first, then known networks, then by signal.
+            if (x["connected"].toBool() != y["connected"].toBool())
+                return x["connected"].toBool();
+            if (x["saved"].toBool() != y["saved"].toBool())
+                return x["saved"].toBool();
+            return x["strength"].toInt() > y["strength"].toInt();
         });
     }
 
@@ -166,13 +280,24 @@ void NetworkService::scan()
     });
 }
 
+void NetworkService::restoreAutoconnect()
+{
+    if (m_devicePath.path().isEmpty())
+        return;
+    QDBusInterface props(NM_SERVICE, m_devicePath.path(),
+                         "org.freedesktop.DBus.Properties", QDBusConnection::systemBus());
+    props.setTimeout(5000);
+    props.asyncCall("Set", QString(DEV_IFACE), QStringLiteral("Autoconnect"),
+                    QVariant::fromValue(QDBusVariant(true)));
+}
+
 void NetworkService::connectTo(const QString &ssid, const QString &passphrase)
 {
     if (m_devicePath.path().isEmpty()) {
         fail(QStringLiteral("No wireless device"));
         return;
     }
-    setBusy(true);
+    setBusy(true, ssid);
 
     // Find the access point for this SSID.
     QDBusInterface w(NM_SERVICE, m_devicePath.path(), WIFI_IFACE,
@@ -193,65 +318,78 @@ void NetworkService::connectTo(const QString &ssid, const QString &passphrase)
         return;
     }
 
-    // Reuse a saved profile when NetworkManager already has one, so a known
-    // network does not need its password typed again.
-    QDBusObjectPath saved;
-    {
-        QDBusInterface s(NM_SERVICE, SETTINGS_PATH, SETTINGS_IFACE,
-                         QDBusConnection::systemBus());
-        s.setTimeout(5000);
-        QDBusReply<QList<QDBusObjectPath>> conns = s.call("ListConnections");
-        if (conns.isValid()) {
-            for (const QDBusObjectPath &c : conns.value()) {
-                QDBusInterface ci(NM_SERVICE, c.path(),
-                                  "org.freedesktop.NetworkManager.Settings.Connection",
-                                  QDBusConnection::systemBus());
-                ci.setTimeout(5000);
-                QDBusReply<QMap<QString, QVariantMap>> cfg = ci.call("GetSettings");
-                if (cfg.isValid() && cfg.value().value("connection").value("id").toString() == ssid) {
-                    saved = c;
-                    break;
-                }
-            }
-        }
-    }
+    /* A saved profile is reused whenever one exists and no new passphrase was
+       typed. Typing one means "that saved secret is wrong" — so the profile is
+       rewritten rather than reactivated with the key that just failed. */
+    const QList<QDBusObjectPath> saved = savedProfiles(ssid);
+    QDBusObjectPath reuse;
+    if (!saved.isEmpty() && passphrase.isEmpty())
+        reuse = saved.first();
+
+    // A device left blocked by an earlier manual disconnect refuses to
+    // activate anything at all, with an error that names neither cause.
+    restoreAutoconnect();
 
     QDBusInterface nm(NM_SERVICE, NM_PATH, NM_IFACE, QDBusConnection::systemBus());
     nm.setTimeout(20000);
 
     QDBusMessage reply;
-    if (!saved.path().isEmpty()) {
-        reply = nm.call("ActivateConnection", QVariant::fromValue(saved),
+    if (!reuse.path().isEmpty()) {
+        reply = nm.call("ActivateConnection", QVariant::fromValue(reuse),
                         QVariant::fromValue(m_devicePath), QVariant::fromValue(apPath));
     } else {
+        /* Replacing the secret of a network that is already known: drop the old
+           profiles first, or NetworkManager keeps both and autoconnect may pick
+           the one with the password that does not work. */
+        if (!saved.isEmpty()) {
+            for (const QDBusObjectPath &c : saved) {
+                QDBusInterface ci(NM_SERVICE, c.path(), CONN_IFACE,
+                                  QDBusConnection::systemBus());
+                ci.setTimeout(5000);
+                ci.call("Delete");
+            }
+        }
+
         QMap<QString, QVariantMap> settings;
         QVariantMap conn;
         conn["type"] = "802-11-wireless";
         conn["id"] = ssid;
         conn["autoconnect"] = true;
+        /* Explicit, because the default is only "as high as anything else".
+           A network the operator joined by hand should win over one that
+           happens to be in range. */
+        conn["autoconnect-priority"] = 10;
         /* Zero means keep trying. The default is four attempts, after which
-           NetworkManager gives up for good — which is why a network that
-           dropped once came back asking for the password again instead of
-           rejoining on its own. */
+           NetworkManager gives up on the profile entirely — so a network that
+           dropped once while the laptop was asleep or out of range never came
+           back by itself, and the only visible symptom was being asked for the
+           password again. */
         conn["autoconnect-retries"] = 0;
         settings["connection"] = conn;
 
         QVariantMap wireless;
         wireless["ssid"] = ssid.toUtf8();
+        /* Stated rather than left to the default. NetworkManager picks
+           infrastructure when this is absent, so nothing changes — but an
+           unset field is a field nobody can check, and this profile is
+           written once and then relied on at every boot. */
         wireless["mode"] = "infrastructure";
-        /* Power saving is what drops these links. The card sleeps between
-           beacons, the access point ages the association out, and the session
-           comes back as a fresh unauthenticated client. */
-        wireless["powersave"] = 2;   // 2 = disable
+        /* Per-profile copy of the global setting in
+           /etc/NetworkManager/conf.d/10-symbiote.conf: a profile written here
+           carries its own value, and without it the global default would be
+           overridden by this very connection. */
+        wireless["powersave"] = 2u;   // 2 = disable
         settings["802-11-wireless"] = wireless;
 
         if (!passphrase.isEmpty()) {
             QVariantMap sec;
             sec["key-mgmt"] = "wpa-psk";
             sec["psk"] = passphrase;
-            // 0 = keep the secret in the profile. Without it NetworkManager
-            // asks an agent for the passphrase on every single reconnect.
-            sec["psk-flags"] = 0;
+            /* 0 = store the secret in the profile. Without it NetworkManager
+               may keep the key in memory only, and the network stops being
+               joinable the moment the daemon restarts — which looks exactly
+               like a password that was never saved. */
+            sec["psk-flags"] = 0u;
             settings["802-11-wireless-security"] = sec;
         }
 
@@ -273,8 +411,30 @@ void NetworkService::connectTo(const QString &ssid, const QString &passphrase)
 
     QTimer::singleShot(2500, this, [this] {
         setBusy(false);
+        reloadSaved();
         refresh();
     });
+}
+
+void NetworkService::forget(const QString &ssid)
+{
+    const QList<QDBusObjectPath> saved = savedProfiles(ssid);
+    if (saved.isEmpty())
+        return;
+
+    setBusy(true, ssid);
+    for (const QDBusObjectPath &c : saved) {
+        QDBusInterface ci(NM_SERVICE, c.path(), CONN_IFACE, QDBusConnection::systemBus());
+        ci.setTimeout(5000);
+        const QDBusMessage reply = ci.call("Delete");
+        if (reply.type() == QDBusMessage::ErrorMessage) {
+            fail(reply.errorMessage());
+            return;
+        }
+    }
+    setBusy(false);
+    reloadSaved();
+    refresh();
 }
 
 void NetworkService::disconnect()
@@ -285,6 +445,16 @@ void NetworkService::disconnect()
                      QDBusConnection::systemBus());
     d.setTimeout(5000);
     d.call("Disconnect");
+
+    /* NetworkManager blocks autoconnect on the device after a manual
+       disconnect and keeps it blocked until something explicitly says
+       otherwise. Left alone, a network you joined and then left never comes
+       back on its own — the profile is still saved, it simply never gets
+       used, which is indistinguishable from having been forgotten. */
+    QTimer::singleShot(600, this, [this] {
+        restoreAutoconnect();
+        refresh();
+    });
     refresh();
 }
 
@@ -295,6 +465,8 @@ void NetworkService::setEnabled(bool on)
     props.setTimeout(5000);
     props.call("Set", QString(NM_IFACE), QStringLiteral("WirelessEnabled"),
                QVariant::fromValue(QDBusVariant(on)));
+    if (on)
+        QTimer::singleShot(600, this, &NetworkService::restoreAutoconnect);
     QTimer::singleShot(800, this, &NetworkService::refresh);
 }
 

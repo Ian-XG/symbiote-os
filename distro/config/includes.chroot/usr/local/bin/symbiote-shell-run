@@ -15,19 +15,11 @@ LOG=/tmp/symbiote-shell.log
 READY=/tmp/symbiote-shell-ready
 WATCHDOG_SECONDS=45
 
-# Two shells ship in the image while the Qt one is being proven on real
-# hardware. Qt is the default: it keeps the hologram's geometry on the GPU
-# instead of re-rasterising it, which the process panel measured costing a full
-# core under Electron. `symbiote.shell=electron` on the kernel command line
-# falls back, so a machine the new shell cannot start is still usable.
-QT_BIN=/opt/symbiote/shell-qt/symbiote-shell-qt
-ELECTRON_BIN=/opt/symbiote/shell/symbiote-shell
-
-case "$(cat /proc/cmdline 2>/dev/null)" in
-	*symbiote.shell=electron*) SHELL_BIN="$ELECTRON_BIN" ;;
-	*symbiote.shell=qt*)       SHELL_BIN="$QT_BIN" ;;
-	*) [ -x "$QT_BIN" ] && SHELL_BIN="$QT_BIN" || SHELL_BIN="$ELECTRON_BIN" ;;
-esac
+# One shell. The Electron build was carried as a fallback until the Qt port had
+# been proven on real hardware; it has been, and it is no longer built. If this
+# binary is missing the watchdog below reports it on screen, which is a better
+# outcome than silently starting a second desktop nobody has been looking at.
+SHELL_BIN=/opt/symbiote/shell-qt/symbiote-shell-qt
 echo "symbiote: using shell $SHELL_BIN"
 
 # Everything a person needs to tell one failure mode from another, printed into

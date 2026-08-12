@@ -102,16 +102,34 @@ void MediaService::setVolume(int percent)
                                   QString::fromLatin1(SINK),
                                   QStringLiteral("%1%").arg(percent)});
     m_volume = percent;
+
+    /* Reaching for the volume while muted means "I want to hear this".
+       Leaving the sink muted after a deliberate change is the behaviour that
+       makes people conclude the slider is broken. Dragging to zero is the one
+       case where silence was the actual request. */
+    if (m_muted && percent > 0) {
+        run(QStringLiteral("wpctl"), {QStringLiteral("set-mute"),
+                                      QString::fromLatin1(SINK),
+                                      QStringLiteral("0")});
+        m_muted = false;
+    }
     emit changed();
 }
 
 void MediaService::toggleMute()
 {
+    setMuted(!m_muted);
+}
+
+void MediaService::setMuted(bool muted)
+{
     run(QStringLiteral("wpctl"), {QStringLiteral("set-mute"),
                                   QString::fromLatin1(SINK),
-                                  QStringLiteral("toggle")});
-    m_muted = !m_muted;
+                                  muted ? QStringLiteral("1") : QStringLiteral("0")});
+    m_muted = muted;
     emit changed();
+    /* Read back rather than trust the write: another mixer may have muted the
+       sink at the same moment, and the panel should show what is true. */
     refresh();
 }
 

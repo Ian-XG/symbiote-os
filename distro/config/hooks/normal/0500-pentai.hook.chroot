@@ -17,16 +17,18 @@ echo "I: installing PentAI"
 if ! git clone --depth 1 "$REPO" /tmp/pentai-src 2>/dev/null; then
 	# A build without network should say so rather than produce an image with
 	# a launcher that fails when somebody clicks it.
-	echo "W: could not clone PentAI — it will be missing from this image" >&2
-	exit 0
+	# Fails the build rather than shipping without it, for the same reason
+	# the Ollama hook does: a warning in a long log is not a signal.
+	echo "E: could not clone PentAI — refusing to ship an image without it" >&2
+	exit 1
 fi
 
 python3 -m venv --system-site-packages "$DEST"
 "$DEST/bin/pip" install --quiet --no-cache-dir /tmp/pentai-src || {
-	echo "W: PentAI failed to install — leaving it out rather than shipping a stub" >&2
+	echo "E: PentAI failed to install" >&2
 	rm -rf "$DEST"
 	rm -rf /tmp/pentai-src
-	exit 0
+	exit 1
 }
 rm -rf /tmp/pentai-src
 

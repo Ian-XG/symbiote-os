@@ -1,0 +1,206 @@
+# Build the ISO on GitHub, and publish it on a tag.
+#
+# Until now the only way to produce an image was `make iso` on a machine with
+# Docker, and the only way to publish one was to upload it by hand. That is
+# fine while one person builds; it means the release on GitHub can silently be
+# several commits behind the source, and nobody can tell which commit an ISO
+# came from.
+#
+# live-build mounts loop devices and bind-mounts /proc inside a chroot, which
+# is why the container is --privileged. A GitHub-hosted runner is a throwaway
+# VM with root, so that is a reasonable thing to do here and nowhere else.
+name: ISO
+
+on:
+  # Any tag starting with v publishes a release.
+  push:
+    tags: ["v*"]
+    # A push to any branch whose head commit says [iso] builds one too. This is
+    # the way to build off a feature branch: workflow_dispatch's button only
+    # appears once the workflow is on the default branch, and a tag is not
+    # always the right granularity while a branch is still in progress. Ordinary
+    # pushes do not match — the job below also checks the marker, so a build is
+    # never started by accident.
+    branches: ["**"]
+  # And it can always be run by hand once this reaches the default branch.
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a draft release as well as an artifact"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write        # needed to create the release; nothing else
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # A tag, a hand-run, or a branch push whose commit asked for it. Without
+    # this guard every push to every branch would start a forty-minute build.
+    if: >-
+      startsWith(github.ref, 'refs/tags/') ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[iso]')
+    # A Debian live image is a long build: debootstrap, a few hundred packages,
+    # squashfs, then xorriso. The default 360-minute ceiling is plenty, but an
+    # explicit one turns a hung mount into a failure rather than six wasted hours.
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The runner ships ~25 GB free and the build wants most of it: the chroot
+      # is unpacked, then squashed, so both exist at once. Dropping the toolchains
+      # this build does not use buys back about 10 GB.
+      - name: Make room for the chroot
+        run: |
+          set -x
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" || true
+          df -h /
+
+      - name: Build the build host
+        run: docker build -f Dockerfile.build -t symbiote-build .
+
+      - name: Build the ISO
+        run: |
+          docker volume create symbiote-work
+          docker run --rm --privileged \
+            -v "$PWD":/build \
+            -v symbiote-work:/work \
+            -w /build \
+            symbiote-build ./build.sh
+
+      # The name live-build gives the image says nothing about which commit it
+      # is. This does. It also splits the ISO, because a GitHub release asset
+      # cannot exceed 2 GiB and the image — with Ollama and the wider tool set —
+      # is just over. The parts reassemble with `cat`, which every OS has; the
+      # checksum is of the whole ISO, so a bad or missing part is caught.
+      - name: Name, checksum and split it
+        id: iso
+        env:
+          # The commit message, so a [release:X.Y.Z] marker can name the release
+          # something a person recognises rather than "Build N". Passed through
+          # the environment rather than interpolated into the script, so a
+          # multi-line message cannot break the shell.
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          set -euo pipefail
+
+          # A version from the commit marker names the release "Symbiote OS
+          # X.Y.Z" and tags it vX.Y.Z; without one it falls back to the build
+          # number, so an ordinary [iso] build still publishes, just unnamed.
+          ver=$(printf '%s' "$COMMIT_MSG" \
+                | grep -oE '\[release:[0-9]+\.[0-9]+\.[0-9]+\]' | head -1 \
+                | sed -E 's/.*\[release:([0-9]+\.[0-9]+\.[0-9]+)\].*/\1/')
+          if [ -n "$ver" ]; then
+            echo "reltag=v$ver" >> "$GITHUB_OUTPUT"
+            echo "relname=Symbiote OS $ver" >> "$GITHUB_OUTPUT"
+          else
+            echo "reltag=build-${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "relname=Build ${GITHUB_RUN_NUMBER} · ${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+          src="$(find distro -maxdepth 1 -name '*.iso' -print -quit)"
+          test -n "$src" || { echo "live-build produced no ISO" >&2; exit 1; }
+          name="symbiote-os-${GITHUB_REF_NAME//\//-}-${GITHUB_SHA::7}-amd64.iso"
+          mkdir -p out
+          mv "$src" "out/$name"
+          ( cd out && sha256sum "$name" > SHA256SUMS )
+          cat out/SHA256SUMS
+          ls -lh out
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+          # Parts of 1900 MiB, well under the 2 GiB ceiling. Suffix .partNN so
+          # the shell glob reassembles them in order.
+          bytes=$(stat -c%s "out/$name")
+          echo "size=$bytes" >> "$GITHUB_OUTPUT"
+          if [ "$bytes" -ge 2147483648 ]; then
+            echo "I: ISO is ${bytes} bytes, over the 2 GiB release-asset limit — splitting"
+            ( cd out && split -b 1900M -d -a 2 "$name" "${name}.part" )
+            ( cd out && sha256sum "${name}.part"* > PARTS.SHA256SUMS )
+            rm -f "out/$name"          # the whole ISO cannot go on the release
+            echo "split=true" >> "$GITHUB_OUTPUT"
+            ls -lh out
+          else
+            echo "split=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # The release notes, written to match what actually got uploaded —
+          # one .iso or a set of parts — rather than a fixed paragraph that
+          # claimed a split even when the image fit. Kept out of out/ so it is
+          # not itself attached as a release asset.
+          human=$(numfmt --to=iec --suffix=B "$bytes" 2>/dev/null || echo "${bytes} bytes")
+          {
+            echo "Built from \`${GITHUB_SHA}\`. Size: ${human}."
+            echo
+            if [ "$bytes" -ge 2147483648 ]; then
+              echo "**Larger than GitHub's 2 GB release-asset limit, so the image is"
+              echo "split into parts.** Download every \`.part*\` file, then reassemble"
+              echo "and verify:"
+              echo
+              echo '```sh'
+              echo "cat symbiote-os-*.iso.part* > symbiote-os.iso"
+              echo "sha256sum -c SHA256SUMS"
+              echo '```'
+              echo
+              echo "\`PARTS.SHA256SUMS\` checks the parts individually if a download"
+              echo "looks truncated."
+            else
+              echo "A single-file image. Download the \`.iso\` and verify:"
+              echo
+              echo '```sh'
+              echo "sha256sum -c SHA256SUMS"
+              echo '```'
+            fi
+            echo
+            echo "The image is isohybrid — Balena Etcher, \`dd\`, or Rufus in DD mode."
+            echo "User and password are both \`symbiote\`, the documented default of a"
+            echo "live image. Change it if the stick leaves your desk."
+          } > "$GITHUB_WORKSPACE/release-notes.md"
+
+      # The artifact keeps the WHOLE, unsplit ISO — one download, no
+      # reassembly, for anyone with repo access. It is the fast path; the
+      # release parts are the durable, shareable, non-expiring one.
+      - name: Rebuild the whole ISO for the artifact
+        run: |
+          set -euo pipefail
+          name="${{ steps.iso.outputs.name }}"
+          mkdir -p artifact
+          if [ "${{ steps.iso.outputs.split }}" = "true" ]; then
+            cat out/"${name}".part* > artifact/"$name"
+          else
+            cp out/"$name" artifact/"$name"
+          fi
+          cp out/SHA256SUMS artifact/
+          ( cd artifact && sha256sum -c SHA256SUMS )   # the reassembly is correct or the build fails
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: symbiote-os-iso
+          path: artifact/
+          # An ISO is gigabytes; keeping every one of them for 90 days is not
+          # a service to anybody's storage quota.
+          retention-days: 14
+          compression-level: 0     # already compressed; recompressing wastes minutes
+
+      # Whatever built the ISO gets a draft release to hang it on — a tag, a
+      # hand-run, or a [iso] branch push. Draft either way: a release is a thing
+      # people download and trust, so it gets a human's eye before it is public.
+      - name: Publish the release
+        if: >-
+          startsWith(github.ref, 'refs/tags/') ||
+          inputs.release ||
+          contains(github.event.head_commit.message, '[iso]')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || steps.iso.outputs.reltag }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || steps.iso.outputs.relname }}
+          # Whatever is left in out/ — the whole ISO when it fit, or the parts
+          # plus their checksums when it did not.
+          files: |
+            out/*
+          # Notes written by the build to match what was actually uploaded.
+          body_path: release-notes.md

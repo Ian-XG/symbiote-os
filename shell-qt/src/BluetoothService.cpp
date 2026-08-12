@@ -96,8 +96,10 @@ BluetoothService::BluetoothService(QObject *parent)
     qDBusRegisterMetaType<QMap<QString, QVariantMap>>();
     qDBusRegisterMetaType<ManagedObjects>();
 
-    /* Registered up front, not on first pair: BlueZ needs an agent in place
-       before a device asks anything, and registering takes one bus call. */
+    /* Created up front, not on first pair: BlueZ needs an agent in place
+       before a device asks anything. Creating it only exports the object on
+       the bus; the registration handshake happens in refresh(), once a radio
+       is known to exist. */
     m_agent = new BluetoothAgent(this);
     connect(m_agent, &BluetoothAgent::confirmationRequested, this,
             [this](const QString &path, const QString &code) {
@@ -114,10 +116,21 @@ BluetoothService::BluetoothService(QObject *parent)
         m_pendingNeedsAnswer = false;
         emit pendingChanged();
     });
+    connect(m_agent, &BluetoothAgent::inputRequested, this,
+            [this](const QString &path, bool numeric) {
+        m_pendingPath = path;
+        m_pendingCode.clear();
+        m_pendingNeedsAnswer = false;
+        m_pendingNeedsInput = true;
+        m_pendingInputNumeric = numeric;
+        emit pendingChanged();
+    });
     connect(m_agent, &BluetoothAgent::requestCleared, this, [this] {
         m_pendingPath.clear();
         m_pendingCode.clear();
         m_pendingNeedsAnswer = false;
+        m_pendingNeedsInput = false;
+        m_pendingInputNumeric = false;
         emit pendingChanged();
     });
 
@@ -132,11 +145,13 @@ bool BluetoothService::radioPresent()
     return !QDir("/sys/class/bluetooth").entryList(QDir::NoDotAndDotDot | QDir::AllEntries).isEmpty();
 }
 
-void BluetoothService::setBusy(bool b)
+void BluetoothService::setBusy(bool b, const QString &path, const QString &action)
 {
-    if (m_busy == b)
+    if (m_busy == b && m_busyPath == path && m_busyAction == action)
         return;
     m_busy = b;
+    m_busyPath = b ? path : QString();
+    m_busyAction = b ? action : QString();
     emit busyChanged();
 }
 
@@ -145,6 +160,58 @@ void BluetoothService::fail(const QString &why)
     m_lastError = why;
     setBusy(false);
     emit changed();
+}
+
+/* What BlueZ says, and what it means.
+ *
+ * These are the failures that actually turn up on a laptop, and every one of
+ * them arrives as a D-Bus error name that tells the operator nothing. A device
+ * that will not connect because its audio profile is not available is a
+ * different problem from one that is out of range, and the fix is different
+ * too — so the panel says which. */
+QString BluetoothService::explain(const QString &name, const QString &message)
+{
+    const QString n = name.section(QLatin1Char('.'), -1);
+    const QString m = message.toLower();
+
+    if (m.contains(QLatin1String("br-connection-profile-unavailable"))
+        || m.contains(QLatin1String("profile unavailable")))
+        return QStringLiteral("Paired, but nothing on this system can use it. "
+                              "For headphones that means the Bluetooth audio "
+                              "profiles are missing — install libspa-0.2-bluetooth "
+                              "and restart PipeWire.");
+    if (m.contains(QLatin1String("page-timeout"))
+        || m.contains(QLatin1String("br-connection-page-timeout")))
+        return QStringLiteral("The device did not answer. It is out of range, "
+                              "asleep, or connected to something else.");
+    if (m.contains(QLatin1String("connection refused"))
+        || m.contains(QLatin1String("busy")))
+        return QStringLiteral("The device refused the connection — it is probably "
+                              "already paired with another machine.");
+    if (n == QLatin1String("AuthenticationCanceled")
+        || n == QLatin1String("AuthenticationFailed")
+        || n == QLatin1String("AuthenticationRejected"))
+        return QStringLiteral("Pairing was rejected. Put the device back into "
+                              "pairing mode and try again.");
+    if (n == QLatin1String("AuthenticationTimeout"))
+        return QStringLiteral("Pairing timed out. Most devices only stay in "
+                              "pairing mode for about a minute.");
+    if (n == QLatin1String("AlreadyExists") || n == QLatin1String("AlreadyConnected"))
+        return QString();   // not a failure worth a red banner
+    if (n == QLatin1String("NotReady"))
+        return QStringLiteral("The adapter is not ready. Turn the radio off and "
+                              "on again.");
+    return message;
+}
+
+bool BluetoothService::isPaired(const QString &path) const
+{
+    for (const QVariant &d : m_devices) {
+        const QVariantMap row = d.toMap();
+        if (row.value("path").toString() == path)
+            return row.value("paired").toBool();
+    }
+    return false;
 }
 
 void BluetoothService::refresh()
@@ -162,6 +229,13 @@ void BluetoothService::refresh()
         emit changed();
         return;
     }
+
+    /* A radio exists, so BlueZ is worth talking to. Registering from here
+       rather than from the constructor also covers a dongle plugged in after
+       login: the agent arrives when the radio does. Repeat calls are cheap —
+       the agent drops them once it is registered or already trying. */
+    if (m_agent)
+        m_agent->registerWithBluez();
 
     bool ok = false;
     const ManagedObjects objects = managedObjects(&ok);
@@ -251,9 +325,15 @@ void BluetoothService::confirmPairing(bool accept)
         m_agent->resolve(accept);
 }
 
+void BluetoothService::submitPairingCode(const QString &text)
+{
+    if (m_agent)
+        m_agent->submitInput(text);
+}
+
 void BluetoothService::setPowered(bool on)
 {
-    setBusy(true);
+    setBusy(true, m_adapterPath, QStringLiteral("power"));
     if (setAdapterProp(QStringLiteral("Powered"), on))
         setBusy(false);
     refresh();
@@ -301,7 +381,7 @@ void BluetoothService::stopDiscovery()
  * longer than a bus round trip goes through a pending-call watcher instead. */
 void BluetoothService::callDevice(const QString &path, const QString &method, int timeoutMs)
 {
-    setBusy(true);
+    setBusy(true, path, method.toLower());
 
     QDBusInterface d(BLUEZ, path, DEVICE_IFACE, QDBusConnection::systemBus());
     d.setTimeout(timeoutMs);
@@ -310,10 +390,15 @@ void BluetoothService::callDevice(const QString &path, const QString &method, in
     connect(watcher, &QDBusPendingCallWatcher::finished, this,
             [this](QDBusPendingCallWatcher *w) {
         const QDBusPendingReply<> reply = *w;
-        if (reply.isError())
-            fail(reply.error().message());
-        else
+        if (reply.isError()) {
+            const QString why = explain(reply.error().name(), reply.error().message());
+            if (why.isEmpty())
+                setBusy(false);
+            else
+                fail(why);
+        } else {
             setBusy(false);
+        }
         refresh();
         w->deleteLater();
     });
@@ -321,7 +406,7 @@ void BluetoothService::callDevice(const QString &path, const QString &method, in
 
 void BluetoothService::pair(const QString &path)
 {
-    setBusy(true);
+    setBusy(true, path, QStringLiteral("pair"));
 
     QDBusInterface d(BLUEZ, path, DEVICE_IFACE, QDBusConnection::systemBus());
     d.setTimeout(PAIR_TIMEOUT_MS);
@@ -332,26 +417,54 @@ void BluetoothService::pair(const QString &path)
         const QDBusPendingReply<> reply = *w;
         w->deleteLater();
         if (reply.isError()) {
-            fail(reply.error().message());
-            return;
+            const QString why = explain(reply.error().name(), reply.error().message());
+            // AlreadyExists means it was paired all along: carry on connecting.
+            if (!why.isEmpty()) {
+                fail(why);
+                return;
+            }
         }
-
-        /* Trust before connecting, or the device has to be re-authorised on
-           every reconnect — the reason a paired headset keeps going silent. */
-        QDBusInterface props(BLUEZ, path, PROPS_IFACE, QDBusConnection::systemBus());
-        props.setTimeout(CALL_TIMEOUT_MS);
-        props.asyncCall("Set", DEVICE_IFACE, "Trusted",
-                        QVariant::fromValue(QDBusVariant(true)));
-
-        setBusy(false);
-        connectDevice(path);
+        trustAndConnect(path);
     });
+}
+
+void BluetoothService::trustAndConnect(const QString &path)
+{
+    /* Trust before connecting, or the device has to be re-authorised on
+       every reconnect — the reason a paired headset keeps going silent. */
+    setTrusted(path, true);
+    // Connecting negotiates profiles with the device; slower than a bus call.
+    callDevice(path, QStringLiteral("Connect"), 20000);
+}
+
+void BluetoothService::setTrusted(const QString &path, bool trusted)
+{
+    QDBusInterface props(BLUEZ, path, PROPS_IFACE, QDBusConnection::systemBus());
+    props.setTimeout(CALL_TIMEOUT_MS);
+    props.asyncCall("Set", DEVICE_IFACE, "Trusted",
+                    QVariant::fromValue(QDBusVariant(trusted)));
 }
 
 void BluetoothService::connectDevice(const QString &path)
 {
-    // Connecting negotiates profiles with the device; slower than a bus call.
-    callDevice(path, QStringLiteral("Connect"), 20000);
+    /* An unpaired device gets paired first.
+     *
+     * BlueZ's Connect() on a device it has never paired with fails with
+     * "Device not paired" or, worse, half-succeeds and drops the link a second
+     * later. The panel used to leave that second step to the operator: a
+     * device found by a scan showed PAIR, and only after the list refreshed
+     * did a CONNECT appear. Anything that went wrong between those two clicks
+     * looked like a device that simply could not be connected to. */
+    if (!isPaired(path)) {
+        /* Discovery holds the radio and makes the connection attempt itself
+           slower and less reliable; BlueZ documents stopping it before
+           pairing. */
+        if (m_discovering)
+            stopDiscovery();
+        pair(path);
+        return;
+    }
+    trustAndConnect(path);
 }
 
 void BluetoothService::disconnectDevice(const QString &path)
@@ -369,8 +482,11 @@ void BluetoothService::forget(const QString &path)
     a.setTimeout(CALL_TIMEOUT_MS);
     const QDBusMessage reply = a.call("RemoveDevice", QVariant::fromValue(QDBusObjectPath(path)));
     if (reply.type() == QDBusMessage::ErrorMessage) {
-        fail(reply.errorMessage());
-        return;
+        const QString why = explain(reply.errorName(), reply.errorMessage());
+        if (!why.isEmpty()) {
+            fail(why);
+            return;
+        }
     }
     refresh();
 }

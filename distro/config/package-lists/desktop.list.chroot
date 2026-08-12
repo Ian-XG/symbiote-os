@@ -28,7 +28,9 @@ wireplumber
 network-manager
 wpasupplicant
 bluez
-bluez-firmware
+# bluez-firmware was dropped in trixie — the Bluetooth adapter firmware it
+# carried is now shipped by the firmware-* packages below, so naming it here
+# fails the build for blobs the image already has.
 upower
 polkitd
 dbus-user-session
@@ -55,18 +57,27 @@ sudo
 # HD 630 and a Radeon Pro, and the display can be wired to either. Missing
 # firmware for the one in use means no working GL, which is one of the ways
 # the shell ends up on a blank screen.
+#
+# Intel graphics firmware moved into firmware-misc-nonfree in trixie —
+# firmware-intel-graphics is not a package there — so that one line is gone and
+# the coverage stays, since firmware-misc-nonfree is right below it.
 firmware-amd-graphics
-firmware-intel-graphics
 firmware-misc-nonfree
 
-# Firmware for real hardware. Wifi and bluetooth chips do not come up without it.
+# Firmware for real hardware. Wifi and bluetooth chips do not come up without
+# it. firmware-linux is the metapackage that pulls the non-free blobs;
+# firmware-brcm80211 (Broadcom wifi, the Mac's chip) was folded into it in
+# trixie and is no longer a package of its own, so naming it would fail the
+# build while firmware-linux already covers it.
 firmware-linux
 firmware-iwlwifi
 firmware-realtek
 firmware-atheros
-firmware-brcm80211
 
-# Electron runtime dependencies
+# Named here rather than left to dependency resolution. These arrived for
+# Electron, which the image no longer ships, but every one of them is still
+# wanted: libnss3 by Firefox, libgtk-3-0 and libatk-bridge2.0-0 by the GTK3
+# applications, libasound2 by anything making a sound, libgbm1 by Mesa.
 libnss3
 libatk-bridge2.0-0
 libgtk-3-0
@@ -79,13 +90,50 @@ fonts-jetbrains-mono
 # the fallback for anything that relies on the desktop providing one.
 hicolor-icon-theme
 adwaita-icon-theme
-# SVG icons are common; without this Qt loads the PNG variants only.
+# SVG icons are common; without these Qt cannot decode one at all.
+#
+# libqt6svg6 alone was not enough and looked like it was. It ships the
+# renderer, not the QImageIOPlugin that teaches QImage the format, so every
+# .svg the launcher reached for failed with "Unsupported image format" and
+# fell back to the line-art glyph. Files, Papers, the archive manager and the
+# image viewer all ship SVG only, so all four lost their real icon — which is
+# the opposite of what this image is meant to do with non-Symbiote apps.
 libqt6svg6
-# Volume and brightness. wpctl ships with wireplumber, which is already here;
-# brightnessctl
+qt6-svg-plugins
+# Reads and rewrites the monitor layout. labwc speaks wlr-output-management;
+# this is that protocol's reference client, and it is what the Screens page in
+# Settings drives. Without it the page can still list the displays — Qt knows
+# them — but it says so and offers nothing it cannot deliver.
+wlr-randr
+# Keeps the clock right on its own.
+#
+# Settings grew a "network time" switch and timedatectl reported CanNTP=no:
+# nothing on the image implemented it, so the switch would have been a control
+# that reported success and changed nothing. With this the clock corrects
+# itself the moment the machine has a network, which also spares most people
+# from having to find the timezone page at all.
+systemd-timesyncd
+
+# The commands applications shell out to.
+#
+# All three were missing and each one fails quietly. Without xdg-open a link
+# clicked in a terminal, or "open containing folder" in a download, does
+# nothing at all — the caller gets "command not found" on a stream nobody is
+# reading. notify-send is how scripts and the odd application raise a
+# notification now that the shell answers org.freedesktop.Notifications.
+# lspci is the first thing anyone reaches for on a machine whose graphics or
+# wireless is not working, which on a live image is the whole point.
+xdg-utils
+libnotify-bin
+pciutils
+# Screen backlight. wpctl handles volume and ships with wireplumber, which is
+# already above; brightness needs its own tool.
+brightnessctl
+
 # symbiote-persist auto adds a partition in the free space of the boot medium:
 # sfdisk comes with util-linux, partprobe does not.
 parted
+
 # Screen lock, idle handling and screenshots. A laptop you carry, with no lock
 # screen, is not a secure system whatever the firewall says; and a machine for
 # security work with no way to capture the screen cannot document anything.
@@ -94,15 +142,10 @@ swayidle
 grim
 slurp
 wl-clipboard
+# swayidle turns the panel off through this.
+wlopm
+
 # Lets applications take screenshots and share screens through the portal
 # rather than each needing compositor privileges.
 xdg-desktop-portal-wlr
 xdg-desktop-portal
-brightnessctl
-# symbiote-persist auto adds a partition in the free space of the boot medium:
-# sfdisk comes with util-linux, partprobe does not.
-parted
-# Lets applications take screenshots and share screens through the portal
-# rather than each needing compositor privileges.
-# swayidle turns the panel off through this.
-wlopm

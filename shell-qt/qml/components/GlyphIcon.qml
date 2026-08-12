@@ -108,10 +108,17 @@ Shape {
                     // A core with satellites: something that reasons and acts.
                     return root.circle(15, 15, 5.5)
                 case "volume":
-                    // Speaker cone.
+                case "mute":
+                    // Speaker cone. Muted differs only in what is drawn beside it.
                     return [root.p(4, 12), root.p(9, 12), root.p(15, 6),
                             root.p(15, 24), root.p(9, 18), root.p(4, 18),
                             root.p(4, 12)]
+                case "key":
+                    // The bow of a key; the blade and its teeth are detail.
+                    return root.circle(8.5, 15, 5)
+                case "database":
+                    // The top platter of a stack.
+                    return root.ellipse(15, 8, 10, 3.5)
                 case "bluetooth":
                     // The runic B: two triangles sharing a vertical stem.
                     return [root.p(10, 9), root.p(20, 20), root.p(15, 24.5),
@@ -228,6 +235,26 @@ Shape {
                 case "volume":
                     // Two waves; the mute state is drawn by the caller's colour.
                     return [root.fan(15, 15, 6.5), root.fan(15, 15, 10)]
+                case "mute":
+                    /* A cross where the waves would be. Colour alone said
+                       "muted" before, which is invisible to anyone who cannot
+                       tell this red from this green, and ambiguous to everyone
+                       else — the tray icon turning a different shade could
+                       equally have meant "selected". */
+                    return [[root.p(19, 11), root.p(27, 19)],
+                            [root.p(27, 11), root.p(19, 19)]]
+                case "key":
+                    // Blade and two teeth.
+                    return [[root.p(13.5, 15), root.p(27, 15)],
+                            [root.p(21, 15), root.p(21, 20)],
+                            [root.p(25, 15), root.p(25, 19)],
+                            [root.p(8.5, 15), root.p(8.5, 15.01)]]
+                case "database":
+                    // The sides of the stack, and the platters between them.
+                    return [[root.p(5, 8), root.p(5, 22)],
+                            [root.p(25, 8), root.p(25, 22)],
+                            root.ellipse(15, 15, 10, 3.5),
+                            root.ellipse(15, 22, 10, 3.5)]
                 case "install":
                     return [[root.p(15, 3), root.p(15, 16)],
                             [root.p(10, 11), root.p(15, 16), root.p(20, 11)],

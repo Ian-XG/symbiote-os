@@ -35,8 +35,17 @@ public:
     /** True once BlueZ has accepted us as the default agent. */
     bool registered() const { return m_registered; }
 
+    /* Ask BlueZ to take this agent, without blocking. Call it when a radio is
+       actually present — with none, org.bluez is not running and will not
+       start, and the request only buys a long wait for a certain failure. */
+    void registerWithBluez();
+
     /** Answer whatever request is outstanding. */
     void resolve(bool accept);
+
+    /* Answer a request that wants characters rather than a yes: the PIN or
+       passkey printed on the back of an older device. Empty text rejects. */
+    void submitInput(const QString &text);
 
 signals:
     /* Something needs the operator. `code` is the passkey to compare, or empty
@@ -44,6 +53,9 @@ signals:
     void confirmationRequested(const QString &devicePath, const QString &code);
     /* A code to read off the screen and type into the other device. */
     void displayRequested(const QString &devicePath, const QString &code);
+    /* The device wants a PIN or a passkey typed in here. `numeric` is true for
+       a passkey, which BlueZ requires to be a number of at most six digits. */
+    void inputRequested(const QString &devicePath, bool numeric);
     void requestCleared();
     void registeredChanged();
 
@@ -63,8 +75,18 @@ private:
     /* Hold BlueZ's call open while the operator decides, then answer it. A
        plain return would accept or reject before anyone had seen the code. */
     void holdForAnswer();
+    /** Second leg of registration: claim the default-agent slot. */
+    void requestDefault();
 
     bool m_registered = false;
+    /* One registration at a time. The service polls for a radio, so without
+       this a slow bus would collect a fresh RegisterAgent every few seconds. */
+    bool m_registering = false;
     bool m_pending = false;
+    /* True when the held call must be answered with text rather than with a
+       bare yes — the reply signature differs, and sending the wrong one leaves
+       BlueZ waiting until it times out. */
+    bool m_pendingIsInput = false;
+    bool m_pendingIsNumeric = false;
     QDBusMessage m_pendingCall;
 };

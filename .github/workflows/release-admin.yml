@@ -1,0 +1,108 @@
+# Publish a draft release and delete stale ones.
+#
+# There is no way to publish or delete a release from a local session — the
+# GitHub MCP server is read-only for releases, and handling the raw push token
+# is (rightly) refused. A workflow, though, runs with a built-in GITHUB_TOKEN
+# that carries contents:write, so the admin action happens on GitHub's side
+# with proper auth and an audit trail, and no credential is ever handled here.
+#
+# It runs on demand from the Actions tab, or off a branch when the head commit
+# carries an [release-admin] marker — the same pattern the ISO workflow uses,
+# because workflow_dispatch's button only appears once a workflow reaches the
+# default branch.
+name: Release admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Tag of the draft release to publish (blank to skip)"
+        type: string
+        default: ""
+      delete:
+        description: "Comma-separated tags of releases to delete (blank to skip)"
+        type: string
+        default: ""
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: write
+
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[release-admin]')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publish and prune
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # On a marker push there are no dispatch inputs, so the branch path
+          # carries the intent this one time: publish v0.2.1 (the slimmed
+          # single-file image) and delete nothing. On a hand-run these come from
+          # the dispatch inputs instead.
+          PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish || 'v0.2.1' }}
+          DELETE: ${{ github.event_name == 'workflow_dispatch' && inputs.delete || '' }}
+        run: |
+          set -uo pipefail
+
+          if [ -n "$PUBLISH" ]; then
+            echo "── publishing $PUBLISH"
+            # --draft=false publishes it and creates the tag; --latest marks it
+            # the repository's current release.
+            if gh release edit "$PUBLISH" --draft=false --latest; then
+              echo "   published $PUBLISH"
+            else
+              echo "   could not publish $PUBLISH (already published, or no such draft)"
+            fi
+
+            # v0.2.1 was built before the ISO workflow learned to write notes
+            # that match a single-file image, so its stored body still describes
+            # a split that did not happen. Correct it here, once.
+            if [ "$PUBLISH" = "v0.2.1" ]; then
+              notes=$(cat <<'NOTES'
+          The slimmed single-file image — xz-compressed squashfs, with docs,
+          man pages and non-English locales stripped (no tool, Ollama or the
+          Electron fallback removed). About 1.92 GB, so it fits GitHub's 2 GB
+          asset limit as one file.
+
+          Download the `.iso` and verify:
+
+          ```sh
+          sha256sum -c SHA256SUMS
+          ```
+
+          The image is isohybrid — Balena Etcher, `dd`, or Rufus in DD mode.
+          User and password are both `symbiote`, the documented default of a
+          live image. Change it if the stick leaves your desk.
+          NOTES
+          )
+              # Strip the YAML block indentation the heredoc carried in.
+              printf '%s\n' "$notes" | sed 's/^          //' > /tmp/notes.md
+              gh release edit "$PUBLISH" --notes-file /tmp/notes.md && echo "   notes corrected"
+            fi
+          fi
+
+          if [ -n "$DELETE" ]; then
+            IFS=','
+            for tag in $DELETE; do
+              tag=$(echo "$tag" | tr -d '[:space:]')
+              [ -z "$tag" ] && continue
+              echo "── deleting $tag"
+              # A draft has no real git tag, so --cleanup-tag is unnecessary and
+              # would fail; delete the release only.
+              if gh release delete "$tag" --yes; then
+                echo "   deleted $tag"
+              else
+                echo "   could not delete $tag (already gone?)"
+              fi
+            done
+          fi
+
+          echo
+          echo "── releases now:"
+          gh release list --limit 10

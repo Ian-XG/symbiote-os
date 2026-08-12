@@ -37,12 +37,9 @@ if [ -d "$WORK/distro/cache" ]; then
 	rm -rf "$CACHE_KEEP"
 	mv "$WORK/distro/cache" "$CACHE_KEEP"
 fi
-rm -rf "$WORK/shell" "$WORK/shell-qt" "$WORK/build-qt" "$WORK/distro"
+rm -rf "$WORK/shell-qt" "$WORK/build-qt" "$WORK/distro"
 
-export npm_config_cache="$WORK/.npm"
-export electron_config_cache="$WORK/.electron"
 # node_modules and dist are host-built (macOS binaries) and must not come along.
-rsync -a --exclude node_modules --exclude dist "$SRC/shell/" "$WORK/shell/"
 rsync -a --exclude build "$SRC/shell-qt/" "$WORK/shell-qt/"
 rsync -a --exclude '.build' --exclude chroot --exclude binary --exclude cache \
 	--exclude '*.iso' "$SRC/distro/" "$WORK/distro/"
@@ -53,60 +50,27 @@ if [ -d "$CACHE_KEEP" ]; then
 fi
 df -h "$WORK" | tail -1
 
-step "Building the Electron shell"
-cd "$WORK/shell"
-if [ -f package-lock.json ]; then
-	npm ci --foreground-scripts
-else
-	echo "W: no package-lock.json, falling back to npm install"
-	npm install --foreground-scripts
-fi
-
-# electron's postinstall fetches the platform binary. Newer npm can gate install
-# scripts, and a silently skipped download breaks electron-builder much later
-# with a confusing error — so check for it here.
-if [ ! -d node_modules/electron/dist ]; then
-	echo "I: electron binary missing, running its install script explicitly"
-	( cd node_modules/electron && node install.js )
-fi
-
-# Same gate applies to esbuild, which also fetches a platform binary on install.
-if ! node -e "require('esbuild')" >/dev/null 2>&1; then
-	echo "I: esbuild binary missing, running its install script explicitly"
-	( cd node_modules/esbuild && node install.js )
-fi
-
-npm run check                       # syntax gate before we spend 20 minutes on an ISO
-
-step "Compiling the HUD for offline use"
-# The design kit loads React/Babel/Lucide from a CDN and compiles JSX in the
-# browser. The shell blocks all network access, so this precompiles the JSX and
-# vendors the libraries locally.
-npm run bundle
-test -f src/renderer/build/kit.js || { echo "E: renderer bundle missing" >&2; exit 1; }
-
-npx electron-builder --linux dir
-
-step "Staging the shell into the image"
-STAGE="$WORK/distro/config/includes.chroot/opt/symbiote/shell"
-rm -rf "$STAGE"
-mkdir -p "$STAGE"
-rsync -a "$WORK/shell/dist/linux-unpacked/" "$STAGE/"
-# electron-builder names the binary after productName ("Symbiote Shell").
-if [ -f "$STAGE/Symbiote Shell" ]; then
-	mv "$STAGE/Symbiote Shell" "$STAGE/symbiote-shell"
-fi
-if [ ! -f "$STAGE/symbiote-shell" ]; then
-	echo "E: shell binary not found after packaging; contents were:" >&2
-	ls -la "$STAGE" >&2
-	exit 1
-fi
-chmod +x "$STAGE/symbiote-shell"
+# The Electron shell is no longer built.
+#
+# It was kept as a fallback while the Qt port proved itself, and it has now
+# been proven — on the reporter's own laptop, with real windows, a real radio
+# and a real battery. Keeping it cost more than it was worth:
+#
+#   - electron-builder downloads the Electron binary from GitHub on every
+#     build, so an image with no network dependency of its own could not be
+#     built without one. That is what finally broke: a failed download, in a
+#     component nothing runs.
+#   - It was most of the build's wall-clock time and a couple of hundred
+#     megabytes of an image already close to the 2 GB single-file limit.
+#   - It was the thing being measured when the desktop was found holding a
+#     whole CPU core at idle.
+#
+# The source stays in shell/ rather than being deleted: it is the reference for
+# what the Qt port had to reproduce, and it costs nothing in the image. If it
+# is ever wanted again, this is the step that built it — see the git history.
 
 step "Building the Qt shell"
-# Built alongside the Electron one, not instead of it: until the Qt shell has
-# proven itself on real hardware, the image keeps a session that is known to
-# start. symbiote-session picks between them.
+# The only shell in the image.
 cmake -S "$WORK/shell-qt" -B "$WORK/build-qt" -G Ninja \
 	-DCMAKE_BUILD_TYPE=Release \
 	-DCMAKE_INSTALL_PREFIX=/usr

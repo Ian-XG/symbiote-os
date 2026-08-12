@@ -1,4 +1,5 @@
 import QtQuick
+import QtQml
 import QtQuick.Window
 import Symbiote
 
@@ -18,6 +19,16 @@ Window {
     readonly property int railWidth: 340 * s
     readonly property int iconColWidth: 124 * s
 
+    /* How much of each edge the taskbar has taken. Everything that used to
+       anchor to `taskbar.top` reads these instead — the bar can now be on any
+       of the four sides, and a desktop that only knows how to avoid the bottom
+       one would put its icon column underneath a left-hand bar. */
+    readonly property real barSize: Prefs.taskbarThickness * s
+    readonly property real insetLeft:   Prefs.taskbarEdge === "left"   ? barSize : 0
+    readonly property real insetRight:  Prefs.taskbarEdge === "right"  ? barSize : 0
+    readonly property real insetTop:    Prefs.taskbarEdge === "top"    ? barSize : 0
+    readonly property real insetBottom: Prefs.taskbarEdge === "bottom" ? barSize : 0
+
     property bool settingsOpen: false
     property bool launcherOpen: false
     property bool wifiOpen: false
@@ -25,6 +36,22 @@ Window {
     property bool mediaOpen: false
     property bool btOpen: false
     property string clockText: ""
+
+    /* The connected network, worked out once. Both the primary taskbar and the
+       one on every extra monitor need these, and NetworkService exposes the
+       list rather than the answer — so this used to be a loop written inline
+       at the point of use, and the second copy of it reached for
+       Network.connected and Network.ssid, which do not exist. */
+    readonly property bool wifiOn: {
+        for (var i = 0; i < Network.networks.length; i++)
+            if (Network.networks[i].connected) return true
+        return false
+    }
+    readonly property string wifiName: {
+        for (var j = 0; j < Network.networks.length; j++)
+            if (Network.networks[j].connected) return Network.networks[j].ssid
+        return ""
+    }
 
     property string menuTargetId: ""
 
@@ -40,6 +67,10 @@ Window {
             { label: Prefs.spin ? "STOP ROTATION" : "START ROTATION", action: "spin" },
             { separator: true },
             { label: Theme.blue ? "ACCENT: TOXIN GREEN" : "ACCENT: SIGNAL BLUE", action: "accent" },
+            /* Where the bar goes, from where you are looking at it. The
+               control is in Settings, but nobody opens Settings to move a
+               taskbar — they right-click the desktop. */
+            { label: "TASKBAR: " + Prefs.taskbarEdge.toUpperCase(), action: "taskbar" },
             { label: "SETTINGS", action: "settings" },
             { separator: true },
             { label: "SCREENSHOT", action: "shot" },
@@ -85,7 +116,7 @@ Window {
 
     // Only ever set by a capture run; see SYMBIOTE_OPEN in main.cpp.
     Component.onCompleted: {
-        // "settings", "settings:BLUETOOTH", or "launcher".
+        // "settings", "settings:BLUETOOTH", "launcher:tools", "wifi", "media"…
         if (accentAtStart === "signal" || accentAtStart === "toxin")
             Theme.accentMode = accentAtStart
         var parts = String(openAtStart).split(":")
@@ -94,10 +125,27 @@ Window {
             if (parts.length > 1) settingsPanel.section = parts[1]
         } else if (parts[0] === "launcher") {
             launcherOpen = true
+            // "launcher:tools" or "launcher:tools:WIRELESS", so the drawer and
+            // the category can both be reviewed without booting an ISO.
+            if (parts.length > 1) launcherPanel.mode = parts[1]
+            if (parts.length > 2) launcherPanel.category = parts[2]
         } else if (parts[0] === "wifi") {
             wifiOpen = true
         } else if (parts[0] === "power") {
             powerOpen = true
+        } else if (parts[0] === "bt") {
+            btOpen = true
+        } else if (parts[0] === "media") {
+            mediaOpen = true
+        } else if (parts[0] === "edge") {
+            /* Capture-only: move the bar *after* the desktop has settled.
+               Starting up on an edge and moving to it are different code
+               paths, and only the second one was broken — the bar ended up
+               holding its old position as well as its new one and covered the
+               screen. A check that only ever started on an edge reported the
+               layout as fine while the reported fault sat untouched. */
+            edgeFlip.to = parts.length > 1 ? parts[1] : "left"
+            edgeFlip.start()
         } else if (parts[0] === "ctx") {
             // Deferred: the capture path resizes the window after the QML
             // loads, so at this point it has no useful size yet.
@@ -121,10 +169,10 @@ Window {
             powerOpen = false
         } else if (mediaOpen) {
             mediaOpen = false
-        } else if (btOpen) {
-            btOpen = false
         } else if (wifiOpen) {
             wifiOpen = false
+        } else if (btOpen) {
+            btOpen = false
         } else if (launcherOpen) {
             launcherOpen = false
         } else if (settingsOpen) {
@@ -212,6 +260,61 @@ Window {
         }
     }
 
+    /* One desktop surface per extra monitor.
+     *
+     * `Displays.count` is in the expression on purpose. The screen list itself
+     * is what gets used; reading the count alongside it ties this binding to a
+     * signal that is known to fire when a monitor is plugged in or unplugged,
+     * so a second screen lights up as soon as it is attached instead of at the
+     * next restart of the shell.
+     */
+    /* Capture-only. A second monitor cannot be conjured in the build container
+       or in VirtualBox without guest additions, so the one failure that would
+       matter — SecondaryShell failing to load and leaving the extra monitor
+       blank — could not be reached by any check. With this set, the primary
+       screen is treated as a secondary one too: the window it builds lands on
+       top of the desktop, which is useless to look at but does prove the
+       component resolves and draws. */
+    property bool forceSecondary: String(openAtStart).split(":")[0] === "dual"
+
+    readonly property var secondaryScreens: {
+        var out = []
+        var all = Qt.application.screens
+        var n = Displays.count            // dependency, not decoration
+        for (var i = 0; i < all.length; i++)
+            if (win.forceSecondary || !win.screen || all[i].name !== win.screen.name)
+                out.push(all[i])
+        return out
+    }
+
+    Instantiator {
+        model: win.secondaryScreens
+        delegate: SecondaryShell {
+            targetScreen: modelData
+            s: win.s
+            clockText: win.clockText
+            dateText: win.dateText
+            launcherOpen: win.launcherOpen
+            wifiConnected: win.wifiOn
+            wifiSsid: win.wifiName
+            /* The panels stay on the primary screen. Opening a second launcher
+               on each monitor would mean two of them on screen at once, each
+               with its own idea of what is selected. */
+            onMenuToggled: win.launcherOpen = !win.launcherOpen
+            onWifiRequested: win.wifiOpen = !win.wifiOpen
+            onPowerRequested: win.powerOpen = !win.powerOpen
+            onMediaRequested: win.mediaOpen = !win.mediaOpen
+        }
+    }
+
+    // See the "edge" branch above. Does nothing unless a capture asks for it.
+    Timer {
+        id: edgeFlip
+        property string to: "left"
+        interval: 400
+        onTriggered: Prefs.taskbarEdge = edgeFlip.to
+    }
+
     Timer {
         interval: 1000; running: true; repeat: true; triggeredOnStart: true
         onTriggered: {
@@ -223,10 +326,26 @@ Window {
         }
     }
 
+    /* The area the desktop actually has, once the taskbar has taken its edge.
+       Drawn nothing, anchored to by everything: the icon column, the marquee
+       surface, the stage and the status rail all measure themselves against
+       this rather than against the window, so moving the bar moves the
+       desktop with it. */
+    Item {
+        id: content
+        anchors {
+            fill: parent
+            leftMargin: win.insetLeft
+            rightMargin: win.insetRight
+            topMargin: win.insetTop
+            bottomMargin: win.insetBottom
+        }
+    }
+
     // ── desktop icons ──────────────────────────────────────────
     DesktopIcons {
         id: icons
-        anchors { left: parent.left; top: parent.top; margins: 20 * win.s }
+        anchors { left: content.left; top: content.top; margins: 20 * win.s }
         /* Above the marquee surface. Same z, and the surface — declared later —
            would sit on top and swallow every click on an icon. */
         z: 2
@@ -249,7 +368,7 @@ Window {
        taskbar must not start a marquee. */
     MouseArea {
         id: surface
-        anchors { left: parent.left; right: rail.left; top: parent.top; bottom: taskbar.top }
+        anchors { left: content.left; right: rail.left; top: content.top; bottom: content.bottom }
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         z: 1
 
@@ -304,7 +423,7 @@ Window {
            between the icon column and the rail, and centring in it put the
            mass visibly left of the screen's middle — which is what it looked
            like, because it was. */
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.horizontalCenter: content.horizontalCenter
         anchors.verticalCenter: stage.verticalCenter
         /* Sized off the stage, but capped. Filling the stage made it a
            background texture rather than a centrepiece — at 1920x1080 it
@@ -343,8 +462,8 @@ Window {
         anchors {
             left: icons.right; leftMargin: 20 * win.s
             right: rail.left; rightMargin: 20 * win.s
-            top: parent.top; topMargin: 20 * win.s
-            bottom: taskbar.top; bottomMargin: 20 * win.s
+            top: content.top; topMargin: 20 * win.s
+            bottom: content.bottom; bottomMargin: 20 * win.s
         }
     }
 
@@ -359,9 +478,9 @@ Window {
         boundsBehavior: Flickable.StopAtBounds
         width: win.railWidth
         anchors {
-            right: parent.right; rightMargin: 20 * win.s
-            top: parent.top; topMargin: 20 * win.s
-            bottom: taskbar.top; bottomMargin: 20 * win.s
+            right: content.right; rightMargin: 20 * win.s
+            top: content.top; topMargin: 20 * win.s
+            bottom: content.bottom; bottomMargin: 20 * win.s
         }
         clip: true
 
@@ -535,8 +654,10 @@ Window {
 
     // ── app launcher ───────────────────────────────────────────
     AppLauncher {
+        id: launcherPanel
         anchors.fill: parent
-        bottomInset: taskbar.height
+        edge: Prefs.taskbarEdge
+        inset: win.barSize
         visible: win.launcherOpen
         z: 55
         onLaunched: function (id, exec) {
@@ -546,6 +667,13 @@ Window {
             else if (exec) Apps.launchCommand(id, exec)
             else if (Apps.openIds.indexOf(id) !== -1) Apps.close(id)
             else Apps.launch(id)
+        }
+        /* A command-line tool has no window of its own, so the shell gives it
+           one that stays open after the command exits. */
+        onLaunchedTool: function (id, title, probe) {
+            win.launcherOpen = false
+            if (Apps.openIds.indexOf(id) !== -1) Apps.close(id)
+            else Apps.launchInTerminal(id, title, probe)
         }
         onDismissed: win.launcherOpen = false
     }
@@ -559,7 +687,8 @@ Window {
     // ── wireless popup ─────────────────────────────────────────
     WifiPopup {
         anchors.fill: parent
-        bottomInset: taskbar.height
+        edge: Prefs.taskbarEdge
+        inset: win.barSize
         visible: win.wifiOpen
         z: 60
         onDismissed: win.wifiOpen = false
@@ -567,15 +696,17 @@ Window {
 
     BluetoothPopup {
         anchors.fill: parent
-        bottomInset: taskbar.height
+        edge: Prefs.taskbarEdge
+        inset: win.barSize
         visible: win.btOpen
-        z: 61
+        z: 60
         onDismissed: win.btOpen = false
     }
 
     MediaPopup {
         anchors.fill: parent
-        bottomInset: taskbar.height
+        edge: Prefs.taskbarEdge
+        inset: win.barSize
         visible: win.mediaOpen
         z: 61
         onDismissed: win.mediaOpen = false
@@ -583,7 +714,6 @@ Window {
 
     PowerMenu {
         anchors.fill: parent
-        bottomInset: taskbar.height
         visible: win.powerOpen
         z: 62
         onDismissed: win.powerOpen = false
@@ -603,6 +733,14 @@ Window {
             case "vignette":  Prefs.vignette = !Prefs.vignette; break
             case "spin":      Prefs.spin = !Prefs.spin; break
             case "accent":    Theme.accentMode = Theme.blue ? "toxin" : "signal"; break
+            case "taskbar": {
+                // Round the four edges, ending back where it started.
+                var order = ["bottom", "left", "top", "right"]
+                var i = order.indexOf(Prefs.taskbarEdge)
+                Prefs.taskbarEdge = order[(i + 1) % order.length]
+                win.notify("Taskbar moved to the " + Prefs.taskbarEdge)
+                break
+            }
             case "settings":  win.settingsOpen = true; break
             case "power":     win.powerOpen = true; break
             case "shot":       PowerActions.screenshot("full"); break
@@ -644,10 +782,14 @@ Window {
     SettingsWindow {
         id: settingsPanel
         visible: win.settingsOpen
-        anchors.centerIn: parent
-        // Nine sections need more room than six did.
-        width: Math.min(980 * win.s, win.width - 80)
-        height: Math.min(560 * win.s, win.height - 160)
+        anchors.centerIn: content
+        /* Wider than it was: the sections moved from a tab strip along the top
+           to a list down the side, which costs 176px of width and buys back a
+           whole row of vertical space plus the two sections that could not be
+           reached at all. */
+        width: Math.min(1060 * win.s, win.width - 60)
+        height: Math.min(640 * win.s, win.height - 90)
+        z: 50
         onClosed: win.settingsOpen = false
     }
 
@@ -655,8 +797,24 @@ Window {
     Notifications {
         id: toasts
         anchors.fill: parent
-        bottomInset: taskbar.height
+        bottomInset: win.insetBottom
         z: 80
+    }
+
+    /* Notifications raised by applications, over the bus every Linux program
+       already uses. Until this the stack above the taskbar could only ever
+       show what the shell itself had to say — a download finishing or a job
+       failing went nowhere at all. */
+    Connections {
+        target: Notify
+        function onPosted(id, appName, summary, body, error, timeoutMs) {
+            // Summary is the headline and body the detail; senders use either
+            // or both, so joining them is the only form that never loses text.
+            var text = summary
+            if (body) text = text ? text + " — " + body : body
+            if (!text) text = appName
+            toasts.push(text, error)
+        }
     }
 
     function notify(text, isError) { toasts.push(text, isError === true) }
@@ -713,7 +871,33 @@ Window {
     // ── taskbar ────────────────────────────────────────────────
     Taskbar {
         id: taskbar
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+        edge: Prefs.taskbarEdge
+        thickness: win.barSize
+        band: Prefs.taskbarBase * win.s
+
+        /* Placed with plain geometry, not anchors, and that is the whole fix
+           for a bar that ate the screen.
+         *
+         * It used to switch anchors per edge, setting the two that did not
+         * apply to undefined. That is the documented way to clear an anchor
+         * and it works at load — every edge looked right on a fresh start.
+         * Changing the edge while running is where it came apart: the anchors
+         * for the old edge did not reliably let go, so moving the bar from the
+         * bottom to the left left it anchored left *and* right *and* top *and*
+         * bottom. Anchored on all four sides an Item fills its parent, so the
+         * bar became the size of the screen — and since the bar paints itself
+         * a 72% black background, the entire desktop went behind a dark sheet
+         * with the icons stranded in the middle of it. It read as the bar
+         * having lost its position; it had actually swallowed the display.
+         *
+         * Four bindings that each compute one number cannot get into that
+         * state. There is nothing to clear.
+         */
+        width:  Prefs.taskbarVertical ? win.barSize : win.width
+        height: Prefs.taskbarVertical ? win.height : win.barSize
+        x: Prefs.taskbarEdge === "right"  ? win.width  - win.barSize : 0
+        y: Prefs.taskbarEdge === "bottom" ? win.height - win.barSize : 0
+        z: 30
         openIds: Apps.openIds
         startingIds: Apps.startingIds
         clock: win.clockText
@@ -742,20 +926,15 @@ Window {
         powerOpen: win.powerOpen
         onMediaRequested: win.mediaOpen = !win.mediaOpen
         mediaOpen: win.mediaOpen
-        onBluetoothRequested: win.btOpen = !win.btOpen
-        btOpen: win.btOpen
         wifiOpen: win.wifiOpen
         wifiAvailable: Network.available
-        wifiConnected: {
-            for (var i = 0; i < Network.networks.length; i++)
-                if (Network.networks[i].connected) return true
-            return false
-        }
-        wifiSsid: {
-            for (var i = 0; i < Network.networks.length; i++)
-                if (Network.networks[i].connected) return Network.networks[i].ssid
-            return ""
-        }
+        wifiConnected: win.wifiOn
+        wifiSsid: win.wifiName
         onContextRequested: function (id, sx, sy) { win.openIconMenu(id, sx, sy) }
+        /* The Bluetooth badge used to be a label with nothing behind it: the
+           radio's state was visible and unreachable, so the only way to connect
+           a headset was to know that Settings had a Bluetooth section. */
+        onBluetoothRequested: win.btOpen = !win.btOpen
+        btOpen: win.btOpen
     }
 }

@@ -65,12 +65,47 @@ QtObject {
     readonly property int space4: 12
     readonly property int space5: 16
     readonly property int space6: 20
+    readonly property int space7: 28
     readonly property int bracket: 12
 
+    /* ── control metrics ────────────────────────────────────────
+       Every control in Settings was sized by hand where it was written: 26 high
+       here, 28 there, 20 for a toggle. At a glance the column of controls
+       looked ragged, and it was — nothing shared a height. */
+    readonly property int ctrlHeight: 28
+    readonly property int ctrlHeightSm: 22
+    readonly property int rowHeight: 56
+
+    /* ── surfaces ───────────────────────────────────────────────
+       A window needs a floor you can read text on. The panel tint alone is
+       58% alpha, which is right for a HUD card lying on the desktop and wrong
+       for a dialogue — the hologram used to show through the labels. */
+    readonly property color surface:      Qt.rgba(0.043, 0.055, 0.047, 0.96)
+    readonly property color surfaceRaise: blue ? Qt.rgba(0.02, 0.06, 0.08, 1.0)
+                                               : Qt.rgba(0.02, 0.07, 0.05, 1.0)
+    readonly property color surfaceSunk:  Qt.rgba(0, 0, 0, 0.35)
+
     // ── motion ─────────────────────────────────────────────────
-    readonly property int durFast: 120
-    readonly property int durMed: 280
+    /* Four durations, not a number picked per animation.
+     *
+     * The shell had two, and everything that was neither a hover nor a panel
+     * fade guessed. Motion that does not share a scale reads as several
+     * interfaces stapled together: a tab that takes 400ms next to a toggle
+     * that takes 90 looks broken rather than deliberate. */
+    readonly property int durInstant: 90     // state on a control under the cursor
+    readonly property int durFast: 120       // hover, focus, small state
+    readonly property int durMed: 280        // a panel arriving or leaving
+    readonly property int durSlow: 420       // something moving across the screen
     readonly property int durPulse: 3200
+
+    /* One easing curve for anything entering, one for anything leaving. Things
+       arrive quickly and settle; things go away without ceremony. */
+    readonly property int easeOut: Easing.OutCubic
+    readonly property int easeIn: Easing.InCubic
+    readonly property int easeStandard: Easing.InOutCubic
+
+    // How far a panel travels while fading in. Enough to read as a direction.
+    readonly property int slide: 10
 
     /* The accent at an arbitrary alpha. Hover tints, glows and washes were all
        written as literal rgba(0, 1, 0.53, ...) — the toxin green spelled out by

@@ -2,14 +2,16 @@ import QtQuick
 import Symbiote
 
 /* The tray's Bluetooth menu.
-   Wraps the same BluetoothPanel the Settings tab uses. Until now the only way
-   to pair anything was Settings → BLUETOOTH, which is three clicks and a
-   guess; the badge in the tray showed the radio and did nothing when pressed. */
+   Wraps the same BluetoothPanel the Settings tab uses, for the same reason the
+   Wi-Fi one does: a second implementation would drift, and it would be this
+   one. Until now the badge in the tray reported that a radio existed and did
+   nothing at all when pressed — pairing anything meant going through Settings. */
 Item {
     id: root
     signal dismissed()
 
-    property real bottomInset: 0
+    property string edge: "bottom"
+    property real inset: 0
 
     // Click-away.
     MouseArea {
@@ -18,40 +20,12 @@ Item {
         onPressed: root.dismissed()
     }
 
-    Item {
-        id: sheet
-        width: 420
-        height: 440
-        anchors {
-            right: parent.right; rightMargin: 18
-            bottom: parent.bottom; bottomMargin: root.bottomInset + 8
-        }
-
-        // Swallow clicks so the click-away behind does not close it.
-        MouseArea { anchors.fill: parent }
-
-        // Rises from the bar rather than appearing.
-        transform: Translate {
-            y: root.visible ? 0 : 12
-            Behavior on y { NumberAnimation { duration: Theme.durMed
-                                              easing.type: Easing.OutCubic } }
-        }
-        opacity: root.visible ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.durFast } }
-
-        Rectangle {
-            anchors.fill: parent
-            // Fully opaque. At 96% the panel behind bled through the text,
-            // which is what made the Settings window unreadable on the laptop.
-            color: Theme.bgVoid
-        }
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.panelStrong
-            border.width: 1
-            border.color: Theme.hairline
-        }
-        Brackets { color: Theme.accent }
+    TraySheet {
+        width: 460
+        height: Math.min(500, root.height - root.inset - 40)
+        edge: root.edge
+        inset: root.inset
+        shown: root.visible
 
         Item {
             id: head
@@ -70,7 +44,7 @@ Item {
             Item {
                 width: 20; height: 20
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                HoverHandler { id: closeHover }
+                HoverHandler { id: closeHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { onTapped: root.dismissed() }
                 Text {
                     anchors.centerIn: parent

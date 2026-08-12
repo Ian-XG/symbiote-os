@@ -1,198 +1,436 @@
 import QtQuick
 import Symbiote
 
-/* Searchable app grid, opened from MENU.
-   In the first Qt port that button opened Settings, because this did not exist
-   yet — so most of the installed tools were unreachable. */
+/* The launcher: everything on the machine, in two drawers.
+ *
+ * It used to be one grid with four ad-hoc groups — SYSTEM, RECON, DEFENSE,
+ * INSTALLED — derived from which drawn glyph an entry happened to have. That
+ * held for the nine curated tools it was written for. It does not hold for a
+ * few hundred desktop entries plus every command-line tool in the image: a text
+ * editor and a password cracker landed in the same bucket, and INSTALLED became
+ * a wall of identical tiles you scrolled past rather than searched.
+ *
+ * So: APPS and TOOLS are separate, and TOOLS is divided the way Kali divides
+ * its menu, because that vocabulary is the one anyone doing this work already
+ * has. You look for "something that sniffs traffic", not for a program whose
+ * name you would have to know in advance.
+ *
+ * Search still crosses both drawers. Knowing the name is the one case where
+ * categories are in the way.
+ */
 Item {
     id: root
     signal launched(string id, string exec)
+    /** A command-line tool: no window of its own, so the shell opens one. */
+    signal launchedTool(string id, string title, string probe)
     signal dismissed()
 
     property string query: ""
-    /* How much of the bottom edge the taskbar owns. Anchoring the sheet to the
-       window's own bottom put it underneath the taskbar, covering the MENU
-       button that opened it. */
-    property real bottomInset: 0
 
-    /* The nine curated tools, then everything the machine actually installed.
-       Keeping them in one list means the search box searches both — the
-       curated ones are just the ones with a drawn glyph and a short name. */
-    readonly property var catalog: Prefs.apps.concat(Apps.discovered)
+    /* Which corner the sheet grows from. The launcher button moves with the
+       taskbar, and a panel that opens at the bottom left while its button is
+       at the top right is a panel that came from nowhere. */
+    property string edge: "bottom"
+    property real inset: 0
+
+    /** "apps" | "tools" */
+    property string mode: "apps"
+    property string category: ""
+
+    // Everything, in one list, with the two axes already on each entry.
+    readonly property var catalog: Prefs.apps.concat(Apps.discovered).concat(Apps.tools)
 
     function matches(app) {
         if (root.query === "")
             return true
         const q = root.query.toLowerCase()
-        return app.title.toLowerCase().indexOf(q) !== -1 || app.id.indexOf(q) !== -1
+        return app.title.toLowerCase().indexOf(q) !== -1
+            || String(app.id).toLowerCase().indexOf(q) !== -1
+            || String(app.category || "").toLowerCase().indexOf(q) !== -1
+            // Keywords and GenericName off the desktop entry, so the terminal
+            // answers to "terminal" and not only to "foot".
+            || String(app.search || "").toLowerCase().indexOf(q) !== -1
     }
 
-    readonly property var visibleApps: catalog.filter(matches)
+    readonly property bool searching: query !== ""
 
-    /* Grouped, not one alphabetical run. Nine curated tools fitted in a flat
-       grid; a few hundred discovered ones do not, and scrolling past a
-       hundred identical tiles to reach a text editor is not a launcher. */
-    readonly property var groups: {
-        var sys = [], recon = [], defense = [], other = []
-        for (var i = 0; i < visibleApps.length; i++) {
-            var a = visibleApps[i]
-            var g = a.glyph
-            if (a.exec === undefined)
-                (g === "radar" || g === "bug") ? recon.push(a)
-                : (g === "shield" || g === "pulse") ? defense.push(a)
-                : sys.push(a)
-            else
-                (g === "radar" || g === "bug") ? recon.push(a)
-                : (g === "shield") ? defense.push(a)
-                : other.push(a)
-        }
+    // Search ignores the drawers; browsing respects them.
+    readonly property var pool: {
         var out = []
-        if (sys.length)     out.push({ name: "SYSTEM",    apps: sys })
-        if (recon.length)   out.push({ name: "RECON",     apps: recon })
-        if (defense.length) out.push({ name: "DEFENSE",   apps: defense })
-        if (other.length)   out.push({ name: "INSTALLED", apps: other })
+        for (var i = 0; i < catalog.length; i++) {
+            var a = catalog[i]
+            if (!matches(a)) continue
+            if (!root.searching) {
+                var isTool = a.kind === "tool"
+                if (root.mode === "tools" && !isTool) continue
+                if (root.mode === "apps" && isTool) continue
+                if (root.mode === "tools" && root.category !== ""
+                    && a.category !== root.category) continue
+            }
+            out.push(a)
+        }
         return out
     }
+
+    readonly property int toolCount: {
+        var n = 0
+        for (var i = 0; i < catalog.length; i++)
+            if (catalog[i].kind === "tool") n++
+        return n
+    }
+    readonly property int appCount: catalog.length - toolCount
+
+    /* The categories with something in them, in Kali's order. Computed from
+       the merged catalogue rather than taken from the service: the curated
+       tools live in QML and the service cannot see them. */
+    readonly property var categories: {
+        var counts = {}
+        for (var i = 0; i < catalog.length; i++) {
+            var a = catalog[i]
+            if (a.kind !== "tool") continue
+            if (root.searching && !matches(a)) continue
+            var c = a.category || "OTHER"
+            counts[c] = (counts[c] || 0) + 1
+        }
+        var order = Apps.categoryOrder
+        var out = [{ v: "", t: "ALL TOOLS", n: root.toolCount }]
+        for (var j = 0; j < order.length; j++)
+            if (counts[order[j]])
+                out.push({ v: order[j], t: order[j], n: counts[order[j]] })
+        return out
+    }
+
+    // Only the tools drawer has anything to filter by.
+    readonly property bool sidebarVisible: mode === "tools" && !searching
+
+    onModeChanged: category = ""
 
     // click-away
     MouseArea {
         anchors.fill: parent
-        onClicked: root.dismissed()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onPressed: root.dismissed()
     }
 
     Rectangle {
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.35)
+        color: Qt.rgba(0, 0, 0, 0.42)
+        opacity: root.visible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Prefs.dur(Theme.durFast) } }
     }
+
+    // ── the sheet ──────────────────────────────────────────────
+    /* Sized to what is in it, up to a ceiling.
+       A fixed 540 left the applications drawer as a mostly empty box with two
+       rows of tiles floating at the top of it — the panel looked broken rather
+       than roomy. Past the ceiling the grid scrolls, which is the point of
+       having categories at all. */
+    readonly property int sheetWidth: Math.min(760, width - 36)
+    readonly property int gridWidth: sheetWidth - 36 - (sidebarVisible ? 152 : 0)
+    readonly property int columns: Math.max(1, Math.floor(gridWidth / 118))
+    readonly property int rowsNeeded: Math.max(1, Math.ceil(pool.length / columns))
 
     Item {
         id: sheet
-        width: 560
-        /* Measured from the row count, not from GridView.contentHeight — the
-           view reports the height of its whole content area, which left the
-           sheet with a band of empty panel under the last row. */
-        /* Grows with the content up to whatever room is left above the bar.
-           With a few hundred applications this hits the ceiling and the list
-           scrolls, which is the point of grouping them. */
-        readonly property int rows: Math.max(1, Math.ceil(root.visibleApps.length / 4))
-        height: Math.min(root.height - root.bottomInset - 24,
-                         18 + header.height + 14 + rows * 84 + root.groups.length * 26 + 18)
-        anchors { left: parent.left; leftMargin: 18
-                  bottom: parent.bottom; bottomMargin: root.bottomInset + 8 }
-
-        // Swallow clicks so the click-away below does not close it.
-        MouseArea { anchors.fill: parent }
-
-        Rectangle {
-            anchors.fill: parent
-            color: Theme.bgVoid
+        width: root.sheetWidth
+        height: Math.min(540,
+                         Math.max(root.sidebarVisible ? 372 : 232,
+                                  112 + root.rowsNeeded * 86),
+                         root.height - root.inset - 36)
+        Behavior on height {
+            enabled: Prefs.motionOn
+            NumberAnimation { duration: Prefs.dur(Theme.durFast); easing.type: Theme.easeOut }
         }
+
+        // Anchored to the corner the launcher button is actually in.
+        x: root.edge === "right" ? root.width - width - root.inset - 12 : 18
+        y: root.edge === "top" ? root.inset + 12 : root.height - height - root.inset - 12
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onWheel: function (wheel) { wheel.accepted = true }
+        }
+
+        opacity: root.visible ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Prefs.dur(Theme.durFast) } }
+        transform: Translate {
+            y: root.visible || !Prefs.motionMoves
+               ? 0 : (root.edge === "top" ? -Theme.slide : Theme.slide)
+            Behavior on y { NumberAnimation { duration: Prefs.dur(Theme.durMed)
+                                              easing.type: Theme.easeOut } }
+        }
+
+        Rectangle { anchors.fill: parent; color: Theme.bgVoid }
         Rectangle {
             anchors.fill: parent
-            color: Theme.panelStrong
+            color: Theme.surface
             border.width: 1
             border.color: Theme.hairline
         }
         Brackets { color: Theme.accent }
 
+        // ── header ─────────────────────────────────────────────
         Item {
             id: header
             anchors { left: parent.left; right: parent.right; top: parent.top; margins: 18 }
-            height: 60
+            height: 62
+
+            /* Two tabs, written out rather than repeated over a model.
+               The rule below has to know where each one is, and reaching for
+               a Repeater's delegates through the parent's `children` list
+               depends on where the Repeater itself sits in that list — which
+               is exactly the kind of thing that is right until somebody adds
+               a sibling. Two named items cannot go wrong. */
+            Row {
+                id: modeTabs
+                spacing: 0
+
+                ModeTab {
+                    id: appsTab
+                    value: "apps"
+                    label: "APPLICATIONS"
+                    count: root.appCount
+                }
+                ModeTab {
+                    id: toolsTab
+                    value: "tools"
+                    label: "TOOLS"
+                    count: root.toolCount
+                }
+            }
+
+            /* One rule that slides between the two tabs. Two rules that each
+               fade would say "something changed"; this says which way. */
+            Rectangle {
+                y: 24
+                x: root.mode === "tools" ? toolsTab.x : appsTab.x
+                width: root.mode === "tools" ? toolsTab.width : appsTab.width
+                height: 2
+                color: Theme.accent
+
+                Behavior on x { NumberAnimation { duration: Prefs.dur(Theme.durMed)
+                                                  easing.type: Theme.easeOut } }
+                Behavior on width { NumberAnimation { duration: Prefs.dur(Theme.durMed)
+                                                      easing.type: Theme.easeOut } }
+            }
 
             Text {
-                text: "APPLICATIONS"
-                color: Theme.accent
-                font.family: Theme.mono
-                font.pixelSize: Theme.sizeXs
-                font.letterSpacing: Theme.trackWider
-            }
-            Text {
-                anchors.right: parent.right
-                text: root.visibleApps.length + "/" + root.catalog.length + " INDEXED"
+                anchors { right: parent.right; top: parent.top }
+                text: root.pool.length + " OF " + root.catalog.length
+                    + (root.searching ? " MATCHING" : " INDEXED")
                 color: Theme.textMuted
                 font.family: Theme.mono
                 font.pixelSize: Theme.size2xs
             }
 
-            Rectangle {
+            HudField {
+                id: search
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                height: 28
-                color: Qt.rgba(0, 0, 0, 0.4)
-                border.width: 1
-                border.color: search.activeFocus ? Theme.accent : Theme.line
+                label: "search"
+                placeholder: "filter everything — apps and tools"
+                onEdited: function (t) { root.query = t }
+                // Escape reaches the window's own binding only when nothing has
+                // keyboard focus, and the search box always does.
+                onEscaped: root.dismissed()
+            }
+        }
 
-                Text {
-                    id: searchLabel
-                    anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                    text: "search"
-                    color: Theme.accent
-                    font.family: Theme.mono
-                    font.pixelSize: Theme.sizeSm
-                }
-                TextInput {
-                    id: search
-                    anchors { left: searchLabel.right; leftMargin: 8; right: parent.right
-                              rightMargin: 10; verticalCenter: parent.verticalCenter }
-                    focus: true
-                    color: Theme.accent
-                    font.family: Theme.mono
-                    font.pixelSize: Theme.sizeSm
-                    onTextChanged: root.query = text
-                    Keys.onEscapePressed: root.dismissed()
-                }
-                Text {
-                    visible: search.text === ""
-                    anchors { left: searchLabel.right; leftMargin: 8; verticalCenter: parent.verticalCenter }
-                    text: "filter applications"
-                    color: Theme.textMuted
-                    font.family: Theme.mono
-                    font.pixelSize: Theme.sizeSm
+        // ── category sidebar ───────────────────────────────────
+        Item {
+            id: sidebar
+            anchors { left: parent.left; leftMargin: 18
+                      top: header.bottom; topMargin: 14
+                      bottom: parent.bottom; bottomMargin: 18 }
+            width: root.sidebarVisible ? 148 : 0
+            clip: true
+            visible: width > 0
+            Behavior on width { NumberAnimation { duration: Prefs.dur(Theme.durMed)
+                                                  easing.type: Theme.easeOut } }
+
+            Rectangle {
+                anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
+                width: 1
+                color: Theme.line
+            }
+
+            ListView {
+                anchors { fill: parent; rightMargin: 12 }
+                clip: true
+                model: root.categories
+                interactive: contentHeight > height
+
+                delegate: Item {
+                    id: catRow
+                    required property var modelData
+                    width: ListView.view.width
+                    height: 27
+
+                    readonly property bool on: catRow.modelData.v === root.category
+
+                    HoverHandler { id: catHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: root.category = catRow.modelData.v }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: catRow.on ? Theme.tint(0.10)
+                             : catHover.hovered ? Theme.tint(0.05) : "transparent"
+                        Behavior on color { ColorAnimation { duration: Prefs.dur(Theme.durInstant) } }
+                    }
+                    Rectangle {
+                        visible: catRow.on
+                        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                        width: 2
+                        color: Theme.accent
+                    }
+                    Text {
+                        anchors { left: parent.left; leftMargin: 10; right: catCount.left
+                                  rightMargin: 6; verticalCenter: parent.verticalCenter }
+                        text: catRow.modelData.t
+                        color: catRow.on ? Theme.accent
+                             : catHover.hovered ? Theme.textBody : Theme.textMuted
+                        font.family: Theme.mono
+                        font.pixelSize: Theme.size2xs
+                        font.letterSpacing: Theme.trackWide
+                        elide: Text.ElideRight
+                    }
+                    Text {
+                        id: catCount
+                        anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                        text: catRow.modelData.n
+                        color: Theme.textMuted
+                        font.family: Theme.mono
+                        font.pixelSize: 7
+                    }
                 }
             }
         }
 
-        Flickable {
+        // ── the grid ───────────────────────────────────────────
+        GridView {
             id: grid
-            anchors {
-                top: header.bottom; topMargin: 14
-                left: parent.left; leftMargin: 18
-                right: parent.right; rightMargin: 18
-                bottom: parent.bottom; bottomMargin: 18
-            }
+            anchors { left: sidebar.right; leftMargin: root.sidebarVisible ? 4 : 18
+                      right: parent.right; rightMargin: 18
+                      top: header.bottom; topMargin: 14
+                      bottom: parent.bottom; bottomMargin: 18 }
             clip: true
-            contentHeight: groupCol.height
+            model: root.pool
+            cellWidth: Math.floor(width / Math.max(1, Math.floor(width / 118)))
+            cellHeight: 86
             boundsBehavior: Flickable.StopAtBounds
+            cacheBuffer: 400
 
-            Column {
-                id: groupCol
-                width: grid.width
-                spacing: 10
+            /* Tiles fade in where they land rather than the whole grid being
+               replaced. Switching drawer or category otherwise reads as the
+               panel blinking. */
+            add: Transition {
+                NumberAnimation { property: "opacity"; from: 0; to: 1
+                                  duration: Prefs.dur(Theme.durFast) }
+            }
+            displaced: Transition {
+                NumberAnimation { properties: "x,y"; duration: Prefs.dur(Theme.durFast)
+                                  easing.type: Theme.easeOut }
+            }
 
-                Repeater {
-                    model: root.groups
+            delegate: Item {
+                id: cell
+                required property var modelData
+                width: grid.cellWidth
+                height: grid.cellHeight
+
+                /* Discovered entries were checked against PATH when they were
+                   read, and command-line tools likewise, so both are installed
+                   by construction. Settings lives inside the shell and has no
+                   binary to find. */
+                readonly property bool installed: cell.modelData.exec !== undefined
+                                                  || cell.modelData.bin !== undefined
+                                                  || cell.modelData.id === "settings"
+                                                  || Apps.isInstalled(cell.modelData.id)
+                readonly property bool isOpen: Apps.openIds.indexOf(cell.modelData.id) !== -1
+
+                Item {
+                    id: tile
+                    anchors { fill: parent; margins: 3 }
+
+                    HoverHandler { id: tileHover; enabled: cell.installed
+                                   cursorShape: Qt.PointingHandCursor }
+                    TapHandler {
+                        enabled: cell.installed
+                        onTapped: {
+                            if (cell.modelData.bin !== undefined)
+                                root.launchedTool(cell.modelData.id, cell.modelData.title,
+                                                  cell.modelData.probe || "")
+                            else
+                                root.launched(cell.modelData.id, cell.modelData.exec || "")
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: tileHover.hovered ? Theme.tint(0.09) : "transparent"
+                        border.width: 1
+                        border.color: !cell.installed ? Qt.rgba(1, 1, 1, 0.05)
+                                    : tileHover.hovered ? Theme.accent
+                                    : cell.isOpen ? Theme.tint(0.35) : Theme.line
+                        Behavior on color { ColorAnimation { duration: Prefs.dur(Theme.durInstant) } }
+                        Behavior on border.color { ColorAnimation { duration: Prefs.dur(Theme.durInstant) } }
+                    }
+
+                    // Running, so the launcher does not offer to start what is
+                    // already there.
+                    Rectangle {
+                        visible: cell.isOpen
+                        anchors { right: parent.right; top: parent.top; margins: 4 }
+                        width: 4; height: 4
+                        color: Theme.accent
+                    }
 
                     Column {
-                        required property var modelData
-                        width: groupCol.width
-                        spacing: 4
-
+                        anchors.centerIn: parent
+                        spacing: 8
+                        AppIcon {
+                            width: 24; height: 24
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            glyph: cell.modelData.glyph
+                            source: cell.modelData.icon !== undefined
+                                    ? cell.modelData.icon
+                                    : (Prefs.iconPaths[cell.modelData.id] || "")
+                            lit: tileHover.hovered || cell.installed
+                            stroke: !cell.installed ? Theme.textMuted
+                                  : tileHover.hovered ? Theme.accent : Theme.textBody
+                        }
                         Text {
-                            text: modelData.name + "  ·  " + modelData.apps.length
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: tile.width - 10
+                            horizontalAlignment: Text.AlignHCenter
+                            text: cell.modelData.short || cell.modelData.title
+                            color: !cell.installed ? Theme.textMuted
+                                 : tileHover.hovered ? Theme.accent : Theme.textBody
+                            font.family: Theme.mono
+                            font.pixelSize: 7
+                            font.letterSpacing: 0.6
+                            elide: Text.ElideRight
+                        }
+                        // Where a tool sits, on the tile itself. When a search
+                        // crosses both drawers this is the only thing that says
+                        // what kind of result you are looking at.
+                        Text {
+                            visible: cell.modelData.kind === "tool"
+                                     && (root.searching || root.category === "")
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: cell.modelData.category || "TOOL"
                             color: Theme.textMuted
                             font.family: Theme.mono
-                            font.pixelSize: Theme.size2xs
-                            font.letterSpacing: Theme.trackWider
-                            topPadding: 4
+                            font.pixelSize: 6
+                            font.letterSpacing: 0.5
                         }
-
-                        Grid {
-                            columns: 4
-                            spacing: 0
-                            Repeater {
-                                model: parent.parent.modelData.apps
-                                delegate: appTile
-                            }
+                        Text {
+                            visible: !cell.installed
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "NOT INSTALLED"
+                            color: Theme.textMuted
+                            font.family: Theme.mono
+                            font.pixelSize: 6
                         }
                     }
                 }
@@ -200,87 +438,63 @@ Item {
         }
 
         Text {
-            visible: root.visibleApps.length === 0
-            anchors.centerIn: parent
-            text: "NO MATCH — \"" + root.query + "\""
+            visible: root.pool.length === 0
+            anchors.centerIn: grid
+            text: root.searching ? "NO MATCH — \"" + root.query + "\""
+                                 : "NOTHING IN THIS CATEGORY"
             color: Theme.textMuted
             font.family: Theme.mono
             font.pixelSize: Theme.size2xs
+            font.letterSpacing: Theme.trackWide
         }
     }
-    /* One tile, used by every group. Defined once here rather than repeated
-       per group — the groups differ in what they contain, not in how a tile
-       looks. */
-    Component {
-        id: appTile
 
-        Item {
-            id: cell
-            required property var modelData
-            width: (sheet.width - 36) / 4
-            height: 84
+    component ModeTab: Item {
+        id: tab
+        property string value: ""
+        property string label: ""
+        property int count: 0
 
-            Item {
-                id: tile
-                anchors { fill: parent; margins: 3 }
+        readonly property bool on: tab.value === root.mode
 
-                /* Discovered entries were checked against PATH when they were
-                   read, so they are installed by construction. Settings lives
-                   inside the shell and has no binary to find. */
-                readonly property bool installed: cell.modelData.exec !== undefined
-                                                  || cell.modelData.id === "settings"
-                                                  || Apps.isInstalled(cell.modelData.id)
+        width: tabRow.implicitWidth + 32
+        height: 24
 
-                HoverHandler { id: tileHover; enabled: tile.installed }
-                TapHandler {
-                    enabled: tile.installed
-                    onTapped: root.launched(cell.modelData.id, cell.modelData.exec || "")
-                }
+        HoverHandler { id: tabHover; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: root.mode = tab.value }
 
-                Rectangle {
-                    anchors.fill: parent
-                    color: tileHover.hovered ? Theme.tint(0.08) : "transparent"
-                    border.width: 1
-                    border.color: !tile.installed ? Qt.rgba(1, 1, 1, 0.05)
-                                : tileHover.hovered ? Theme.accent : Theme.line
-                }
-
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 7
-                    AppIcon {
-                        width: 24; height: 24
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        glyph: cell.modelData.glyph
-                        source: cell.modelData.icon !== undefined
-                                ? cell.modelData.icon
-                                : (Prefs.iconPaths[cell.modelData.id] || "")
-                        lit: tileHover.hovered || tile.installed
-                        stroke: !tile.installed ? Theme.textMuted
-                              : tileHover.hovered ? Theme.accent : Theme.textBody
-                    }
-                    Text {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: cell.width - 10
-                        horizontalAlignment: Text.AlignHCenter
-                        text: cell.modelData.short || cell.modelData.title
-                        color: !tile.installed ? Theme.textMuted
-                             : tileHover.hovered ? Theme.accent : Theme.textBody
-                        font.family: Theme.mono
-                        font.pixelSize: 7
-                        font.letterSpacing: 0.6
-                        elide: Text.ElideRight
-                    }
-                    Text {
-                        visible: !tile.installed
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: "NOT INSTALLED"
-                        color: Theme.textMuted
-                        font.family: Theme.mono
-                        font.pixelSize: 6
-                    }
-                }
+        Row {
+            id: tabRow
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 7
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: tab.label
+                color: tab.on ? Theme.accent
+                     : tabHover.hovered ? Theme.textBody : Theme.textMuted
+                font.family: Theme.mono
+                font.pixelSize: Theme.sizeXs
+                font.letterSpacing: Theme.trackWider
+                Behavior on color { ColorAnimation { duration: Prefs.dur(Theme.durFast) } }
             }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: tab.count
+                color: Theme.textMuted
+                font.family: Theme.mono
+                font.pixelSize: Theme.size2xs
+            }
+        }
+    }
+
+    // Focus the search box whenever the launcher opens, and clear what was
+    // typed last time — a stale filter looks like a launcher with no apps in it.
+    onVisibleChanged: {
+        if (visible) {
+            search.clear()
+            root.query = ""
+            root.category = ""
+            search.focusInput()
         }
     }
 }
