@@ -321,13 +321,74 @@ Window {
     property bool forceSecondary: String(openAtStart).split(":")[0] === "dual"
 
     readonly property var secondaryScreens: {
-        var out = []
         var all = Qt.application.screens
-        var n = Displays.count            // dependency, not decoration
-        for (var i = 0; i < all.length; i++)
-            if (win.forceSecondary || !win.screen || all[i].name !== win.screen.name)
-                out.push(all[i])
+        var primary = Displays.primaryName        // also the change dependency
+        if (win.forceSecondary)
+            return all
+
+        /* Fail closed. This used to read
+               !win.screen || all[i].name !== win.screen.name
+           so when the window could not say which screen it was on, *every*
+           screen counted as an extra one — including the one already showing
+           the desktop. On a MacBook whose internal panel enumerates as DP-3
+           that is exactly what happened: a second desktop, with only a
+           wallpaper and a taskbar on it, painted over the real one. The name
+           in the middle of it was the only clue.
+           With no primary to compare against there is now nothing to add. */
+        if (!primary)
+            return []
+
+        // The primary's geometry, to recognise anything sitting on top of it.
+        var base = null
+        for (var j = 0; j < Displays.screens.length; j++)
+            if (Displays.screens[j].primary) base = Displays.screens[j]
+
+        function coversPrimary(name) {
+            if (!base) return false
+            for (var k = 0; k < Displays.screens.length; k++) {
+                var r = Displays.screens[k]
+                if (r.name !== name) continue
+                return r.x === base.x && r.y === base.y
+                    && r.width === base.width && r.height === base.height
+            }
+            return false
+        }
+
+        var out = []
+        for (var i = 0; i < all.length; i++) {
+            if (all[i].name === primary)
+                continue
+            /* Mirrored and phantom outputs report the primary's own geometry.
+               Covering the desktop with a copy of itself is the same fault by
+               another route. */
+            if (coversPrimary(all[i].name))
+                continue
+            out.push(all[i])
+        }
         return out
+    }
+
+    /* Says what it decided, and why, in the session log.
+       This is the fault that put a second empty desktop over the real one on a
+       MacBook and there was nothing anywhere to say it had happened — the only
+       evidence was the monitor's name showing through the middle of the
+       screen. One line at startup makes the next occurrence a grep. */
+    /* The binding hands back a fresh array every time it re-evaluates, so the
+       change signal fires whether or not the answer moved. Logging on the
+       signal alone printed the same line four times at startup, and a log that
+       repeats itself is how real messages get skipped. */
+    property string lastScreenReport: ""
+    onSecondaryScreensChanged: {
+        var names = []
+        for (var i = 0; i < win.secondaryScreens.length; i++)
+            names.push(win.secondaryScreens[i].name)
+        var line = "displays: primary=" + Displays.primaryName
+                 + " of " + Displays.count
+                 + ", extra desktops on [" + names.join(", ") + "]"
+        if (line === win.lastScreenReport)
+            return
+        win.lastScreenReport = line
+        console.info(line)
     }
 
     Instantiator {

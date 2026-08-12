@@ -32,6 +32,14 @@ class DisplayService : public QObject
        the modes it can be set to. */
     Q_PROPERTY(QVariantList screens READ screens NOTIFY changed)
     Q_PROPERTY(int count READ count NOTIFY changed)
+    /* The screen the desktop belongs on, named by Qt itself.
+     *
+     * The QML used to work this out from the window's own `screen` property
+       and fall back to "treat every screen as secondary" when that was not yet
+       known. On a MacBook whose internal panel enumerates as DP-3 that fallback
+       fired and painted a second desktop over the first. This is authoritative
+       and it is empty only when Qt has no screens at all. */
+    Q_PROPERTY(QString primaryName READ primaryName NOTIFY changed)
     /** False when wlr-randr is not installed: read-only, and say why. */
     Q_PROPERTY(bool manageable READ manageable CONSTANT)
     Q_PROPERTY(QString lastError READ lastError NOTIFY changed)
@@ -41,6 +49,7 @@ public:
 
     QVariantList screens() const { return m_screens; }
     int count() const { return m_screens.size(); }
+    QString primaryName() const { return m_primaryName; }
     bool manageable() const { return m_manageable; }
     QString lastError() const { return m_lastError; }
 
@@ -69,6 +78,7 @@ private:
     static bool haveWlrRandr();
 
     QVariantList m_screens;
+    QString m_primaryName;
     bool m_manageable = false;
     QString m_lastError;
 };

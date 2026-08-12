@@ -45,6 +45,18 @@ void DisplayService::rescan()
     const QScreen *primary = qApp->primaryScreen();
     const QList<QScreen *> list = qApp->screens();
 
+    /* Named the same way the rows are, so a screen with no connector name
+       still matches the row that describes it. */
+    m_primaryName.clear();
+    for (int i = 0; i < list.size(); ++i) {
+        if (list[i] != primary)
+            continue;
+        m_primaryName = list[i]->name().isEmpty()
+                            ? QStringLiteral("DISPLAY %1").arg(i + 1)
+                            : list[i]->name();
+        break;
+    }
+
     int index = 0;
     for (QScreen *s : list) {
         ++index;
