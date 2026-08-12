@@ -369,6 +369,11 @@ void NetworkService::connectTo(const QString &ssid, const QString &passphrase)
 
         QVariantMap wireless;
         wireless["ssid"] = ssid.toUtf8();
+        /* Stated rather than left to the default. NetworkManager picks
+           infrastructure when this is absent, so nothing changes — but an
+           unset field is a field nobody can check, and this profile is
+           written once and then relied on at every boot. */
+        wireless["mode"] = "infrastructure";
         /* Per-profile copy of the global setting in
            /etc/NetworkManager/conf.d/10-symbiote.conf: a profile written here
            carries its own value, and without it the global default would be
