@@ -25,18 +25,28 @@ TARBALL="https://github.com/ollama/ollama/releases/download/${VERSION}/ollama-li
 
 echo "I: installing Ollama ${VERSION}"
 
-if ! curl -fsSL --retry 3 --retry-delay 2 -o /tmp/ollama.tgz "$TARBALL"; then
-	# A build without network should say so rather than produce an image with
-	# a launcher that fails when somebody clicks it.
-	echo "W: could not download Ollama — it will be missing from this image" >&2
-	exit 0
+# Retries hard, then stops the build.
+#
+# This used to warn and carry on. It fired once, on a transient GitHub blip,
+# and the build reported success — producing an image 800 MB lighter than it
+# should have been, missing the feature it was asked for, with the reason
+# buried forty minutes deep in a log nobody re-reads. It was caught by noticing
+# the file size, which is not a test.
+#
+# A failed build costs one rebuild. A quietly incomplete image costs whoever
+# flashed it finding out later.
+if ! curl -fsSL --retry 6 --retry-delay 5 --retry-all-errors \
+        --connect-timeout 20 -o /tmp/ollama.tgz "$TARBALL"; then
+	echo "E: could not download Ollama from ${TARBALL}" >&2
+	echo "E: refusing to build an image that is silently missing it" >&2
+	exit 1
 fi
 
 mkdir -p /tmp/ollama-unpack
 if ! tar -xzf /tmp/ollama.tgz -C /tmp/ollama-unpack; then
-	echo "W: the Ollama tarball did not unpack — leaving it out" >&2
+	echo "E: the Ollama tarball did not unpack — a truncated download?" >&2
 	rm -rf /tmp/ollama.tgz /tmp/ollama-unpack
-	exit 0
+	exit 1
 fi
 rm -f /tmp/ollama.tgz
 
