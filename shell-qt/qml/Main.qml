@@ -37,6 +37,22 @@ Window {
     property bool btOpen: false
     property string clockText: ""
 
+    /* The connected network, worked out once. Both the primary taskbar and the
+       one on every extra monitor need these, and NetworkService exposes the
+       list rather than the answer — so this used to be a loop written inline
+       at the point of use, and the second copy of it reached for
+       Network.connected and Network.ssid, which do not exist. */
+    readonly property bool wifiOn: {
+        for (var i = 0; i < Network.networks.length; i++)
+            if (Network.networks[i].connected) return true
+        return false
+    }
+    readonly property string wifiName: {
+        for (var j = 0; j < Network.networks.length; j++)
+            if (Network.networks[j].connected) return Network.networks[j].ssid
+        return ""
+    }
+
     property string menuTargetId: ""
 
     function openDesktopMenu(gx, gy) {
@@ -252,12 +268,21 @@ Window {
      * so a second screen lights up as soon as it is attached instead of at the
      * next restart of the shell.
      */
+    /* Capture-only. A second monitor cannot be conjured in the build container
+       or in VirtualBox without guest additions, so the one failure that would
+       matter — SecondaryShell failing to load and leaving the extra monitor
+       blank — could not be reached by any check. With this set, the primary
+       screen is treated as a secondary one too: the window it builds lands on
+       top of the desktop, which is useless to look at but does prove the
+       component resolves and draws. */
+    property bool forceSecondary: String(openAtStart).split(":")[0] === "dual"
+
     readonly property var secondaryScreens: {
         var out = []
         var all = Qt.application.screens
         var n = Displays.count            // dependency, not decoration
         for (var i = 0; i < all.length; i++)
-            if (!win.screen || all[i].name !== win.screen.name)
+            if (win.forceSecondary || !win.screen || all[i].name !== win.screen.name)
                 out.push(all[i])
         return out
     }
@@ -270,6 +295,8 @@ Window {
             clockText: win.clockText
             dateText: win.dateText
             launcherOpen: win.launcherOpen
+            wifiConnected: win.wifiOn
+            wifiSsid: win.wifiName
             /* The panels stay on the primary screen. Opening a second launcher
                on each monitor would mean two of them on screen at once, each
                with its own idea of what is selected. */
@@ -885,16 +912,8 @@ Window {
         mediaOpen: win.mediaOpen
         wifiOpen: win.wifiOpen
         wifiAvailable: Network.available
-        wifiConnected: {
-            for (var i = 0; i < Network.networks.length; i++)
-                if (Network.networks[i].connected) return true
-            return false
-        }
-        wifiSsid: {
-            for (var i = 0; i < Network.networks.length; i++)
-                if (Network.networks[i].connected) return Network.networks[i].ssid
-            return ""
-        }
+        wifiConnected: win.wifiOn
+        wifiSsid: win.wifiName
         onContextRequested: function (id, sx, sy) { win.openIconMenu(id, sx, sy) }
         /* The Bluetooth badge used to be a label with nothing behind it: the
            radio's state was visible and unreachable, so the only way to connect

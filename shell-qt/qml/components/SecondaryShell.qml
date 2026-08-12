@@ -30,6 +30,8 @@ Window {
     property string clockText: ""
     property string dateText: ""
     property bool launcherOpen: false
+    property bool wifiConnected: false
+    property string wifiSsid: ""
 
     signal menuToggled()
     signal wifiRequested()
@@ -85,7 +87,7 @@ Window {
     Text {
         anchors.centerIn: parent
         text: sec.targetScreen ? sec.targetScreen.name : ""
-        color: Theme.textFaint
+        color: Theme.textMuted
         font.family: Theme.mono
         font.pixelSize: 48 * sec.s
         font.letterSpacing: Theme.trackWider
@@ -111,9 +113,9 @@ Window {
         battery: Power.percent
         batteryPresent: Power.present
         batteryCharging: Power.onAc
-        wifiConnected: Network.connected
         wifiAvailable: Network.available
-        wifiSsid: Network.ssid
+        wifiConnected: sec.wifiConnected
+        wifiSsid: sec.wifiSsid
         onLaunched: function (id) {
             if (Apps.openIds.indexOf(id) !== -1) Apps.close(id)
             else Apps.launch(id)
