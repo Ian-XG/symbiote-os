@@ -44,13 +44,6 @@ fi
 chmod 755 /usr/local/bin/symbiote-session
 chmod 755 /usr/local/bin/symbiote-shell-run
 
-# Electron's sandbox needs a setuid helper unless unprivileged user namespaces
-# are enabled. Setting the bit is the supported fix — do NOT pass --no-sandbox.
-if [ -f /opt/symbiote/shell/chrome-sandbox ]; then
-	chown root:root /opt/symbiote/shell/chrome-sandbox
-	chmod 4755 /opt/symbiote/shell/chrome-sandbox
-fi
-
 systemctl enable greetd
 systemctl enable NetworkManager
 systemctl enable bluetooth

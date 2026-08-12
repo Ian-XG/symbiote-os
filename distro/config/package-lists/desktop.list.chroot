@@ -74,7 +74,10 @@ firmware-iwlwifi
 firmware-realtek
 firmware-atheros
 
-# Electron runtime dependencies
+# Named here rather than left to dependency resolution. These arrived for
+# Electron, which the image no longer ships, but every one of them is still
+# wanted: libnss3 by Firefox, libgtk-3-0 and libatk-bridge2.0-0 by the GTK3
+# applications, libasound2 by anything making a sound, libgbm1 by Mesa.
 libnss3
 libatk-bridge2.0-0
 libgtk-3-0
