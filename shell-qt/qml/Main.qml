@@ -839,12 +839,25 @@ Window {
     }
 
     // ── notifications ──────────────────────────────────────────
-    /* Its own window, above everything. Drawn inside the desktop window it was
-       painted underneath every application — see NotificationLayer.qml. */
-    NotificationLayer {
+    /* Inside the desktop window, which means underneath any application that
+       covers this corner. That is a real limitation and it is the better of
+       the two options available.
+     *
+     * The alternative was tried: a second top-level window with an always-on-
+     * top rule. It does float above other applications, and it arrives as an
+     * application window — server-side titlebar, minimise and close buttons,
+     * centred on the display, and holding the keyboard focus you were typing
+     * into. None of that is fixable from here. Wayland gives a client no way
+     * to position its own toplevel, and a surface that floats without stealing
+     * focus or decoration is what wlr-layer-shell exists for, which Qt does
+     * not speak. A decorated window called "Symbiote Notifications" landing in
+     * the middle of the screen and taking focus is worse than a message that
+     * is sometimes covered. */
+    Notifications {
         id: toasts
-        targetScreen: win.screen
+        anchors.fill: parent
         bottomInset: win.insetBottom
+        z: 80
     }
 
     /* Notifications raised by applications, over the bus every Linux program
