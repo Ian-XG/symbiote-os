@@ -182,6 +182,13 @@ Window {
                layout as fine while the reported fault sat untouched. */
             edgeFlip.to = parts.length > 1 ? parts[1] : "left"
             edgeFlip.start()
+        } else if (parts[0] === "toast") {
+            /* Capture only. The notification surface is a separate always-on-top
+               window that exists only while a message is up, so nothing in a
+               still capture would ever create it — and a fault in it would show
+               up first on somebody's desk. */
+            win.notify("Firefox — download finished", false)
+            win.notify("Could not reach the update server", true)
         } else if (parts[0] === "ctx") {
             // Deferred: the capture path resizes the window after the QML
             // loads, so at this point it has no useful size yet.
@@ -832,11 +839,12 @@ Window {
     }
 
     // ── notifications ──────────────────────────────────────────
-    Notifications {
+    /* Its own window, above everything. Drawn inside the desktop window it was
+       painted underneath every application — see NotificationLayer.qml. */
+    NotificationLayer {
         id: toasts
-        anchors.fill: parent
+        targetScreen: win.screen
         bottomInset: win.insetBottom
-        z: 80
     }
 
     /* Notifications raised by applications, over the bus every Linux program

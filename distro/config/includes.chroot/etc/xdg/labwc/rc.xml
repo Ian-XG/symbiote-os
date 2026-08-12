@@ -37,8 +37,26 @@
          application, so it matches this rule too and gets the same treatment:
          behind everything, undecorated, and out of the window switcher. The
          second rule here matched Electron's productName and is gone with it. -->
-    <windowRule identifier="symbiote-shell">
+    <windowRule identifier="symbiote-shell" title="Symbiote Shell">
       <action name="ToggleAlwaysOnBottom"/>
+      <skipTaskbar>yes</skipTaskbar>
+      <skipWindowSwitcher>yes</skipWindowSwitcher>
+      <serverDecoration>no</serverDecoration>
+      <fixedPosition>yes</fixedPosition>
+    </windowRule>
+
+    <!-- Notifications, and the one shell surface that must be above everything
+         rather than below it.
+         The rule above is matched on the title as well as the app id for this
+         reason: both windows belong to the same application and so carry the
+         same app_id, and a rule matching the id alone would send the toasts to
+         the bottom of the stack with the wallpaper. Which is where they were —
+         the shell answers org.freedesktop.Notifications for every application
+         on the machine, and painted the answer underneath them.
+         The window only exists while a message is on screen; see
+         NotificationLayer.qml. -->
+    <windowRule identifier="symbiote-shell" title="Symbiote Notifications">
+      <action name="ToggleAlwaysOnTop"/>
       <skipTaskbar>yes</skipTaskbar>
       <skipWindowSwitcher>yes</skipWindowSwitcher>
       <serverDecoration>no</serverDecoration>

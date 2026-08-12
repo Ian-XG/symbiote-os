@@ -74,6 +74,69 @@ Item {
     property bool wifiOpen: false
 
     // Icon buttons scale with the bar rather than staying 46px on a 88px bar.
+    /* Windows, grouped by the application that owns them.
+     *
+     * The bar listed every window flat. Three terminals meant three tiles all
+     * called foot, each squeezed to 46px and none of them saying which was
+     * which — and that is with three. This is what Ubuntu's dock and the macOS
+     * Dock both do instead: one tile per application, a count when there is
+     * more than one, and clicking cycles through them.
+     */
+    readonly property var windowGroups: {
+        var order = []
+        var byApp = {}
+        var list = Windows.windows
+        for (var i = 0; i < list.length; i++) {
+            var w = list[i]
+            /* Fall back to the title when the surface reports no app id.
+               Grouping every anonymous window together under "" would collect
+               unrelated programs into one tile. */
+            var k = String(w.appId || ("title:" + w.title))
+            if (byApp[k] === undefined) {
+                byApp[k] = { key: k, name: String(w.appId || w.title), wins: [],
+                             activated: false, minimized: true }
+                order.push(k)
+            }
+            var g = byApp[k]
+            g.wins.push(w)
+            if (w.activated) g.activated = true
+            // A group counts as minimised only when every window in it is.
+            if (!w.minimized) g.minimized = false
+        }
+        var out = []
+        for (var j = 0; j < order.length; j++) {
+            var grp = byApp[order[j]]
+            /* The label is the focused window's title when one of them has
+               focus, so the bar says what you are actually looking at rather
+               than the application's name over and over. */
+            var label = grp.name
+            for (var m = 0; m < grp.wins.length; m++)
+                if (grp.wins[m].activated) label = grp.wins[m].title
+            if (grp.wins.length === 1) label = grp.wins[0].title
+            grp.label = label
+            grp.count = grp.wins.length
+            out.push(grp)
+        }
+        return out
+    }
+
+    /* Click a group: raise the next of its windows.
+       No cursor is stored anywhere. Which window has focus is the position in
+       the cycle, and the compositor already knows it — keeping a second copy
+       here would only be something to get out of step. */
+    function cycleGroup(group) {
+        var focused = -1
+        for (var i = 0; i < group.count; i++)
+            if (group.wins[i].activated) focused = i
+
+        // The only window, and it is in front: put it away, as everywhere else.
+        if (group.count === 1 && focused === 0) {
+            Windows.minimize(group.wins[0].key)
+            return
+        }
+        Windows.activate(group.wins[(focused + 1) % group.count].key)
+    }
+
     readonly property int cell: Math.round(root.band * 0.64)
     readonly property int iconSize: Math.max(16, Math.round(cell * 0.46))
 
@@ -457,7 +520,7 @@ Item {
             bottomMargin: root.vertical ? 6 : 0
         }
         clip: true
-        visible: Windows.available && Windows.windows.length > 0
+        visible: Windows.available && root.windowGroups.length > 0
 
         ListView {
             id: winList
@@ -465,7 +528,7 @@ Item {
             width: root.vertical ? parent.width : Math.min(parent.width, contentWidth)
             height: root.vertical ? Math.min(parent.height, contentHeight) : 32
             orientation: root.vertical ? ListView.Vertical : ListView.Horizontal
-            model: Windows.windows
+            model: root.windowGroups
             spacing: 4
             clip: true
             interactive: root.vertical ? contentHeight > height : contentWidth > width
@@ -491,20 +554,24 @@ Item {
                 width: root.vertical
                        ? winList.width
                        : Math.max(46, Math.min(168, Math.min(ideal,
-                              (windowZone.width - (Windows.windows.length - 1) * 4)
-                              / Math.max(1, Windows.windows.length))))
+                              (windowZone.width - (root.windowGroups.length - 1) * 4)
+                              / Math.max(1, root.windowGroups.length))))
                 height: root.vertical ? 28 : 32
 
                 HoverHandler { id: winHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler {
-                    // Clicking the focused window puts it away, as everywhere else.
-                    onTapped: winButton.modelData.activated
-                              ? Windows.minimize(winButton.modelData.key)
-                              : Windows.activate(winButton.modelData.key)
-                }
+                TapHandler { onTapped: root.cycleGroup(winButton.modelData) }
                 TapHandler {
                     acceptedButtons: Qt.RightButton
-                    onTapped: Windows.closeWindow(winButton.modelData.key)
+                    /* Closes the focused window of the group, or the first when
+                       none has focus. Closing all of them from one click is not
+                       something to do by accident. */
+                    onTapped: {
+                        var g = winButton.modelData
+                        var pick = g.wins[0]
+                        for (var i = 0; i < g.count; i++)
+                            if (g.wins[i].activated) pick = g.wins[i]
+                        Windows.closeWindow(pick.key)
+                    }
                 }
 
                 Rectangle {
@@ -531,7 +598,10 @@ Item {
                     anchors { left: parent.left; leftMargin: 9
                               right: parent.right; rightMargin: 8
                               verticalCenter: parent.verticalCenter }
-                    text: winButton.modelData.title
+                    // "foot ·3" rather than three tiles all called foot.
+                    text: winButton.modelData.count > 1
+                          ? winButton.modelData.label + "  ·" + winButton.modelData.count
+                          : winButton.modelData.label
                     color: winButton.modelData.minimized ? Theme.textMuted
                          : winButton.modelData.activated ? Theme.accent : Theme.textBody
                     font.family: Theme.mono
