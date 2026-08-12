@@ -38,8 +38,13 @@ ManagedObjects managedObjects(bool *ok)
     return reply.isValid() ? reply.value() : ManagedObjects();
 }
 
-/* Sort so the list reads the way an operator scans it: what is connected,
-   then what is known, then whatever is loudest nearby. */
+/* Connected first, then paired, then alphabetical.
+ *
+ * Deliberately NOT by signal strength. RSSI moves by several dBm every few
+ * seconds while discovery is running, so sorting on it reordered the list on
+ * every refresh — you would reach for a device and it had already swapped
+ * places with its neighbour. Signal is still shown; it just does not decide
+ * where a row lives. */
 bool byUsefulness(const QVariant &a, const QVariant &b)
 {
     const QVariantMap x = a.toMap();
@@ -48,10 +53,39 @@ bool byUsefulness(const QVariant &a, const QVariant &b)
         return x["connected"].toBool();
     if (x["paired"].toBool() != y["paired"].toBool())
         return x["paired"].toBool();
-    // Absent RSSI means out of range, so it sorts last rather than as zero.
-    const int rx = x["rssi"].isNull() ? -999 : x["rssi"].toInt();
-    const int ry = y["rssi"].isNull() ? -999 : y["rssi"].toInt();
-    return rx > ry;
+    const int byName = x["name"].toString().localeAwareCompare(y["name"].toString());
+    if (byName != 0)
+        return byName < 0;
+    // Address as the tie-break: two devices can share a name, and the order
+    // has to be the same on every refresh or the list still shuffles.
+    return x["address"].toString() < y["address"].toString();
+}
+
+/* Whether a refresh is worth telling the interface about.
+ *
+ * Assigning a new list to a ListView's model destroys and rebuilds every
+ * delegate. Doing that every four seconds because a signal reading drifted by
+ * 2 dBm made the list unusable: any row you were about to click could be
+ * rebuilt out from under the press. */
+bool meaningfullyDifferent(const QVariantList &a, const QVariantList &b)
+{
+    if (a.size() != b.size())
+        return true;
+    for (int i = 0; i < a.size(); ++i) {
+        const QVariantMap x = a[i].toMap();
+        const QVariantMap y = b[i].toMap();
+        if (x["path"] != y["path"] || x["name"] != y["name"]
+            || x["paired"] != y["paired"] || x["connected"] != y["connected"]
+            || x["trusted"] != y["trusted"]) {
+            return true;
+        }
+        // Signal only counts as news when it actually moved.
+        const int rx = x["rssi"].isNull() ? -999 : x["rssi"].toInt();
+        const int ry = y["rssi"].isNull() ? -999 : y["rssi"].toInt();
+        if (qAbs(rx - ry) >= 10)
+            return true;
+    }
+    return false;
 }
 
 } // namespace
@@ -213,6 +247,10 @@ void BluetoothService::refresh()
         return;
     }
 
+    const bool wasPowered = m_powered;
+    const bool wasDiscovering = m_discovering;
+    const bool wasPresent = m_present;
+
     QString adapterPath;
     QVariantMap adapter;
     QVariantList found;
@@ -252,11 +290,16 @@ void BluetoothService::refresh()
     m_adapterName = adapter.value("Alias", adapter.value("Name")).toString();
     m_powered = adapter.value("Powered", false).toBool();
     m_discovering = adapter.value("Discovering", false).toBool();
+    const bool listChanged = meaningfullyDifferent(m_devices, found);
     m_devices = found;
     if (m_present)
         m_lastError.clear();
 
-    emit changed();
+    /* Adapter state always goes out; the device list only when it really
+       moved, so the view is not rebuilt under the operator's hands. */
+    if (listChanged || wasPowered != m_powered || wasDiscovering != m_discovering
+        || wasPresent != m_present)
+        emit changed();
 }
 
 bool BluetoothService::setAdapterProp(const QString &prop, const QVariant &value)
