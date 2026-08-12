@@ -37,6 +37,7 @@ Item {
         { key: "SCREENS",    label: "SCREENS",    glyph: "app" },
         { key: "NETWORK",    label: "NETWORK",    glyph: "wifi" },
         { key: "BLUETOOTH",  label: "BLUETOOTH",  glyph: "bluetooth" },
+        { key: "VPN",        label: "VPN",        glyph: "shield" },
         { key: "KEYBOARD",   label: "KEYBOARD",   glyph: "terminal" },
         { key: "SHORTCUTS",  label: "SHORTCUTS",  glyph: "terminal" },
         { key: "SYSTEM",     label: "SYSTEM",     glyph: "pulse" },
@@ -646,6 +647,124 @@ Item {
                             text: "DISMISS"
                             onClicked: Displays.clearError()
                         }
+                    }
+                }
+            }
+
+            // VPN ──────────────────────────────────────────────
+            /* Any provider, not two of them.
+               Preinstalling Mullvad's and Proton's own clients would mean two
+               third-party apt repositories and their signing keys inside an
+               image built for security work — and would still leave out
+               everyone else. NetworkManager already runs OpenVPN and
+               WireGuard; a profile from anywhere imports here. */
+            Section {
+                shown: root.section === "VPN"
+
+                SettingGroup {
+                    title: "TUNNELS"
+                    note: Vpn.anyActive ? "up · " + Vpn.activeName : "none up"
+
+                    Repeater {
+                        model: Vpn.connections
+
+                        delegate: Item {
+                            id: vrow
+                            required property var modelData
+                            width: parent ? parent.width : 300
+                            height: 52
+
+                            Text {
+                                id: vname
+                                anchors { left: parent.left; top: parent.top; topMargin: 8 }
+                                text: vrow.modelData.name
+                                color: vrow.modelData.active ? Theme.accent : Theme.text
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.sizeXs
+                                font.letterSpacing: Theme.trackWide
+                            }
+                            Text {
+                                anchors { left: parent.left; top: vname.bottom; topMargin: 3 }
+                                text: vrow.modelData.type
+                                      + (vrow.modelData.active ? "   ·   CONNECTED" : "")
+                                color: Theme.textMuted
+                                font.family: Theme.mono
+                                font.pixelSize: Theme.size2xs
+                            }
+
+                            Row {
+                                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                spacing: 8
+                                HudButton {
+                                    text: vrow.modelData.active ? "DISCONNECT" : "CONNECT"
+                                    danger: vrow.modelData.active
+                                    enabled: !Vpn.busy
+                                    onClicked: vrow.modelData.active
+                                               ? Vpn.deactivate(vrow.modelData.uuid)
+                                               : Vpn.activate(vrow.modelData.uuid)
+                                }
+                                HudButton {
+                                    text: "FORGET"
+                                    danger: true
+                                    enabled: !Vpn.busy && !vrow.modelData.active
+                                    onClicked: Vpn.forget(vrow.modelData.uuid)
+                                }
+                            }
+
+                            Rectangle {
+                                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                                height: 1
+                                color: Theme.hairline
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        visible: Vpn.connections.length === 0
+                        label: "No profiles yet"
+                        hint: "Download a configuration from your provider — Mullvad, Proton, "
+                              + "or anyone else — and import it below. OpenVPN and WireGuard both work."
+                        separator: false
+                        enabled: false
+                    }
+                }
+
+                SettingGroup {
+                    title: "IMPORT"
+
+                    SettingRow {
+                        label: "Profile file"
+                        hint: "Full path to a .ovpn or a WireGuard .conf. "
+                              + "Save it somewhere first — the browser puts downloads in ~/Downloads."
+                        stacked: true
+                        separator: Vpn.lastError !== ""
+
+                        Column {
+                            width: parent ? parent.width : 300
+                            spacing: 6
+
+                            HudField {
+                                id: vpnPath
+                                width: parent.width
+                                placeholder: "~/Downloads/mullvad-xx.conf"
+                            }
+                            HudButton {
+                                text: "IMPORT"
+                                enabled: !Vpn.busy && vpnPath.text !== ""
+                                onClicked: {
+                                    Vpn.importProfile(vpnPath.text)
+                                    if (Vpn.lastError === "") vpnPath.text = ""
+                                }
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        visible: Vpn.lastError !== ""
+                        label: "Last error"
+                        hint: Vpn.lastError
+                        separator: false
+                        HudButton { text: "DISMISS"; onClicked: Vpn.clearError() }
                     }
                 }
             }

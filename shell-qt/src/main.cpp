@@ -19,6 +19,7 @@
 #include "DisplayService.h"
 #include "TimeService.h"
 #include "NotificationService.h"
+#include "VpnService.h"
 #include "PowerService.h"
 #include "AppLauncher.h"
 #include "PacedAnimationDriver.h"
@@ -103,6 +104,7 @@ int main(int argc, char *argv[])
     DisplayService displays;
     TimeService timeService;
     NotificationService notifications;
+    VpnService vpn;
     PowerService power;
     AppLauncher apps;
     PowerActions powerActions;
@@ -122,6 +124,7 @@ int main(int argc, char *argv[])
     ctx->setContextProperty(QStringLiteral("Displays"), &displays);
     ctx->setContextProperty(QStringLiteral("Clock"), &timeService);
     ctx->setContextProperty(QStringLiteral("Notify"), &notifications);
+    ctx->setContextProperty(QStringLiteral("Vpn"), &vpn);
     ctx->setContextProperty(QStringLiteral("Power"), &power);
     ctx->setContextProperty(QStringLiteral("Apps"), &apps);
     ctx->setContextProperty(QStringLiteral("PowerActions"), &powerActions);

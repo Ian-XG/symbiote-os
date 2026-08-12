@@ -149,3 +149,18 @@ torsocks
 nikto
 dirsearch
 recon-ng
+
+# Needed by 0550-pentest-tools.hook.chroot, which fetches the four tools Debian
+# does not carry. unzip opens subfinder's release archive; samba-common-bin is
+# what enum4linux actually drives — rpcclient and nmblookup — and without it the
+# script installs cleanly and then fails on every target.
+unzip
+samba-common-bin
+
+# VPN. No third-party client and no third-party apt repository: the machine
+# already has openvpn and wireguard-tools, and this is the NetworkManager
+# plugin that lets a .ovpn profile be imported and switched on like any other
+# connection. It works with Mullvad, Proton, a corporate gateway or anything
+# else that hands out a profile, rather than backing two providers and their
+# signing keys into a security image.
+network-manager-openvpn
