@@ -53,6 +53,35 @@ Window {
         return ""
     }
 
+    /* What a click on a dock tile does.
+     *
+     * It used to close the application. Clicking the tile of something already
+     * running is how everyone raises a window — on Ubuntu, on macOS, on
+     * Windows — and here it killed it, which meant a misplaced click threw
+     * away whatever was in that terminal. Now it raises the window; closing is
+     * an explicit choice in the context menu, and a second window is a middle
+     * click or that same menu.
+     */
+    function activateOrLaunch(id) {
+        if (id === "settings") { win.settingsOpen = true; return }
+        if (Apps.openIds.indexOf(id) === -1) { Apps.launch(id); return }
+
+        /* Raise it through the compositor. The shell knows it started the
+           process; only the compositor knows which surface belongs to it, so
+           match on the toplevel's app id. */
+        var wins = Windows.windows
+        for (var i = 0; i < wins.length; i++) {
+            var w = wins[i]
+            var app = String(w.appId || "").toLowerCase()
+            if (app.indexOf(id.toLowerCase()) !== -1) {
+                Windows.activate(w.key)
+                return
+            }
+        }
+        /* Running but with no surface the compositor will own up to — a tool
+           still starting, or one that never draws. Nothing to raise. */
+    }
+
     property string menuTargetId: ""
 
     function openDesktopMenu(gx, gy) {
@@ -103,13 +132,20 @@ Window {
         var onDesktop = Prefs.desktopIds.indexOf(id) !== -1
         var onTaskbar = Prefs.taskbarIds.indexOf(id) !== -1
         desktopMenu.dismiss()
-        iconMenu.entries = [
-            { label: Apps.openIds.indexOf(id) !== -1 ? "CLOSE" : "OPEN", action: "open" },
-            { separator: true },
-            { label: onTaskbar ? "UNPIN FROM TASKBAR" : "PIN TO TASKBAR", action: "pinbar" },
-            { label: onDesktop ? "REMOVE FROM DESKTOP" : "ADD TO DESKTOP",
-              action: "pindesk", danger: onDesktop }
-        ]
+        var running = Apps.openIds.indexOf(id) !== -1
+        var copies = Apps.instanceCount(id)
+        /* NEW WINDOW appears only once something is running — offering it on a
+           closed application would just be OPEN under a second name. */
+        var rows = [{ label: running ? "OPEN ANOTHER WINDOW" : "OPEN", action: "open" }]
+        if (running) {
+            rows.push({ label: copies > 1 ? "CLOSE NEWEST OF " + copies : "CLOSE",
+                        action: "close", danger: true })
+        }
+        rows.push({ separator: true })
+        rows.push({ label: onTaskbar ? "UNPIN FROM TASKBAR" : "PIN TO TASKBAR", action: "pinbar" })
+        rows.push({ label: onDesktop ? "REMOVE FROM DESKTOP" : "ADD TO DESKTOP",
+                    action: "pindesk", danger: onDesktop })
+        iconMenu.entries = rows
         iconMenu.popup(gx, gy)
     }
     property string dateText: ""
@@ -304,6 +340,7 @@ Window {
             onWifiRequested: win.wifiOpen = !win.wifiOpen
             onPowerRequested: win.powerOpen = !win.powerOpen
             onMediaRequested: win.mediaOpen = !win.mediaOpen
+            onLaunchRequested: function (id) { win.activateOrLaunch(id) }
         }
     }
 
@@ -769,9 +806,10 @@ Window {
             switch (action) {
             case "open":
                 if (id === "settings") win.settingsOpen = true
-                else if (Apps.openIds.indexOf(id) !== -1) Apps.close(id)
+                else if (Apps.openIds.indexOf(id) !== -1) Apps.launchNew(id)
                 else Apps.launch(id)
                 break
+            case "close": Apps.close(id); break
             case "pinbar":  Prefs.toggleIn("taskbar", id); break
             case "pindesk": Prefs.toggleIn("desktop", id); break
             }
@@ -916,10 +954,8 @@ Window {
         battery: Power.percent
         batteryPresent: Power.present
         batteryCharging: Power.onAc
-        onLaunched: function (id) {
-            if (Apps.openIds.indexOf(id) !== -1) Apps.close(id)
-            else Apps.launch(id)
-        }
+        onLaunched: function (id) { win.activateOrLaunch(id) }
+        onNewWindowRequested: function (id) { Apps.launchNew(id) }
         onMenuToggled: win.launcherOpen = !win.launcherOpen
         onWifiRequested: win.wifiOpen = !win.wifiOpen
         onPowerRequested: win.powerOpen = !win.powerOpen

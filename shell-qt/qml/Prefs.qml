@@ -144,7 +144,15 @@ QtObject {
      * Kali's, so that a tool found here and a tool found on PATH land in the
      * same drawer. */
     readonly property var apps: [
-        { id: "files",    glyph: "files",    title: "FILE MANAGER", short: "FILES",    code: "FS_00",  kind: "app",  category: "", iconName: "org.gnome.Nautilus" },
+        /* No iconName. The file manager happens to be Nautilus, but what the
+           operator is clicking is this desktop's Files — a system concept, so
+           it stays in the line vocabulary like Settings and Trash.
+           It carried iconName: "org.gnome.Nautilus" and appeared to be drawn,
+           which was an accident: Qt could not decode the SVG and fell through
+           to the glyph. Installing the SVG plugin fixed the decoding and the
+           blue GNOME icon appeared in the dock, looking like a regression
+           because it was one. */
+        { id: "files",    glyph: "files",    title: "FILE MANAGER", short: "FILES",    code: "FS_00",  kind: "app",  category: "" },
         { id: "terminal", glyph: "terminal", title: "TERMINAL",     short: "TERMINAL", code: "TTY_04", kind: "app",  category: "" },
         { id: "browser",  glyph: "browser",  title: "FIREFOX",      short: "FIREFOX",  code: "NET_01", kind: "app",  category: "", iconName: "firefox-esr" },
         { id: "settings", glyph: "settings", title: "SETTINGS",     short: "SETTINGS", code: "SYS_02", kind: "app",  category: "" },

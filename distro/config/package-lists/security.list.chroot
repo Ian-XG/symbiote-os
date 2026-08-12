@@ -138,3 +138,14 @@ rlwrap
 # ── anonymity ───────────────────────────────────────────────────────────────
 tor
 torsocks
+
+# Tools PentAI probes for and reported missing on real hardware.
+#
+# PentAI prints a tick or a cross for each tool it can drive. On the first boot
+# on a real machine several were crosses, which makes the assistant advertise
+# capabilities the image cannot deliver. These three are the ones Debian
+# carries; wpscan, enum4linux, rustscan and subfinder are not in the archive at
+# all and would each need fetching from their own release page at build time.
+nikto
+dirsearch
+recon-ng

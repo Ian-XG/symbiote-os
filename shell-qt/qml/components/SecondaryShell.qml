@@ -33,6 +33,7 @@ Window {
     property bool wifiConnected: false
     property string wifiSsid: ""
 
+    signal launchRequested(string id)
     signal menuToggled()
     signal wifiRequested()
     signal powerRequested()
@@ -116,10 +117,9 @@ Window {
         wifiAvailable: Network.available
         wifiConnected: sec.wifiConnected
         wifiSsid: sec.wifiSsid
-        onLaunched: function (id) {
-            if (Apps.openIds.indexOf(id) !== -1) Apps.close(id)
-            else Apps.launch(id)
-        }
+        // Same rules as the primary bar: raise, never kill on a plain click.
+        onLaunched: function (id) { sec.launchRequested(id) }
+        onNewWindowRequested: function (id) { Apps.launchNew(id) }
         // Panels belong to the primary window; this only asks for them.
         onMenuToggled: sec.menuToggled()
         onWifiRequested: sec.wifiRequested()

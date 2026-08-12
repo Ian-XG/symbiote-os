@@ -661,7 +661,7 @@ QStringList AppLauncher::categoryOrder() const
 void AppLauncher::launchInTerminal(const QString &id, const QString &title,
                                    const QString &probe)
 {
-    if (m_open.contains(id))
+    if (!m_forceNew && m_open.contains(id))
         return;
 
     /* The shell stays after the command exits. A tool that prints its usage
@@ -680,8 +680,9 @@ void AppLauncher::launchInTerminal(const QString &id, const QString &title,
 
     connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
             [this, id, p](int, QProcess::ExitStatus) {
-        m_open.remove(id);
-        m_starting.remove(id);
+        m_open.remove(id, p);
+        if (!m_open.contains(id))
+            m_starting.remove(id);
         p->deleteLater();
         emit openChanged();
     });
@@ -704,7 +705,7 @@ void AppLauncher::launchCommand(const QString &id, const QString &exec)
     const QStringList parts = exec.split(QLatin1Char(' '), Qt::SkipEmptyParts);
     if (parts.isEmpty())
         return;
-    if (m_open.contains(id))
+    if (!m_forceNew && m_open.contains(id))
         return;
 
     auto *p = new QProcess(this);
@@ -716,8 +717,9 @@ void AppLauncher::launchCommand(const QString &id, const QString &exec)
 
     connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
             [this, id, p](int, QProcess::ExitStatus) {
-        m_open.remove(id);
-        m_starting.remove(id);
+        m_open.remove(id, p);
+        if (!m_open.contains(id))
+            m_starting.remove(id);
         p->deleteLater();
         emit openChanged();
     });
@@ -752,7 +754,7 @@ void AppLauncher::launch(const QString &id)
         emit errorChanged();
         return;
     }
-    if (m_open.contains(id))
+    if (!m_forceNew && m_open.contains(id))
         return;
 
     const Entry &e = m_catalog[id];
@@ -782,8 +784,9 @@ void AppLauncher::launch(const QString &id)
                              "incompletely — reflash it, ideally on another "
                              "stick.").arg(id)
             : QStringLiteral("%1: %2").arg(id, why);
-        m_open.remove(id);
-        m_starting.remove(id);
+        m_open.remove(id, p);
+        if (!m_open.contains(id))
+            m_starting.remove(id);
         emit errorChanged();
         emit openChanged();
     });
@@ -817,8 +820,9 @@ void AppLauncher::launch(const QString &id)
                 emit errorChanged();
             }
         }
-        m_open.remove(id);
-        m_starting.remove(id);
+        m_open.remove(id, p);
+        if (!m_open.contains(id))
+            m_starting.remove(id);
         p->deleteLater();
         emit openChanged();
     });
@@ -835,11 +839,40 @@ void AppLauncher::launch(const QString &id)
     emit openChanged();
 }
 
+QStringList AppLauncher::openIds() const
+{
+    /* Unique. A QMultiHash returns one key per value, so three terminals would
+       otherwise put three identical tiles in the dock. */
+    QStringList out;
+    for (const QString &k : m_open.uniqueKeys())
+        out << k;
+    return out;
+}
+
+int AppLauncher::instanceCount(const QString &id) const
+{
+    return m_open.count(id);
+}
+
+void AppLauncher::launchNew(const QString &id)
+{
+    /* The flag is read by the three launch paths in place of their "already
+       running" check. A parameter threaded through all of them would have been
+       tidier; this keeps every existing caller working unchanged, and the two
+       lines it touches are three functions away, not across the file. */
+    m_forceNew = true;
+    launch(id);
+    m_forceNew = false;
+}
+
 void AppLauncher::close(const QString &id)
 {
     if (!m_open.contains(id))
         return;
-    QProcess *p = m_open[id];
+    /* The newest copy. QMultiHash hands back the most recently inserted value
+       for a key, which is the window the operator most likely just opened and
+       meant to close. */
+    QProcess *p = m_open.value(id);
     p->terminate();                 // SIGTERM so the app can save
     QTimer::singleShot(3000, p, [p] {
         if (p->state() != QProcess::NotRunning)

@@ -53,26 +53,57 @@ qt6-qpa-plugins
 # Recovery: without sudo a failed graphical session leaves no way back in.
 sudo
 
-# Graphics firmware. This machine class (2017 MacBook Pro) has BOTH an Intel
-# HD 630 and a Radeon Pro, and the display can be wired to either. Missing
-# firmware for the one in use means no working GL, which is one of the ways
-# the shell ends up on a blank screen.
+# Graphics firmware. Missing firmware for whichever GPU drives the display
+# means no working GL, which is one of the ways the shell ends up on a blank
+# screen.
 #
-# Intel graphics firmware moved into firmware-misc-nonfree in trixie —
-# firmware-intel-graphics is not a package there — so that one line is gone and
-# the coverage stays, since firmware-misc-nonfree is right below it.
+# firmware-intel-graphics is back. A comment here used to claim it had been
+# folded into firmware-misc-nonfree and was "not a package in trixie". It is a
+# package in trixie, 29 MB of it, and the claim was written from memory rather
+# than checked against the archive.
 firmware-amd-graphics
+firmware-intel-graphics
+firmware-intel-misc
 firmware-misc-nonfree
 
-# Firmware for real hardware. Wifi and bluetooth chips do not come up without
-# it. firmware-linux is the metapackage that pulls the non-free blobs;
-# firmware-brcm80211 (Broadcom wifi, the Mac's chip) was folded into it in
-# trixie and is no longer a package of its own, so naming it would fail the
-# build while firmware-linux already covers it.
+# Firmware for real hardware. Wireless and Bluetooth chips do not come up
+# without it, and a live image that cannot reach a network is close to useless.
+#
+# This list was three vendors long and it was not enough. On an MSI laptop the
+# desktop reported "no adapter" — no wireless device at all — because the chip
+# was a MediaTek and no MediaTek firmware was on the image. A second comment
+# here claimed firmware-brcm80211 had been "folded into firmware-linux and is
+# no longer a package of its own". It is a package, it is 18 MB, and Broadcom
+# is what a great many laptops have. Both claims were remembered, not checked.
+#
+# Every wireless vendor a laptop or a USB dongle is likely to be is now named
+# explicitly. What is deliberately left out, and why:
+#
+#   firmware-b43-installer, -b43legacy-installer   download from the internet
+#       in their postinst. That is what broke the build and what
+#       --firmware-chroot false exists to avoid; naming them would bring it
+#       straight back.
+#   firmware-qcom-soc (305 MB), -netronome (144 MB), -marvell-prestera (60 MB)
+#       phones, server NICs and switch ASICs. Nothing that boots this.
+#   firmware-nvidia-*  (185 MB for the set) nouveau drives the display without
+#       it, and the image has a 2 GB ceiling to stay a single-file release.
 firmware-linux
 firmware-iwlwifi
 firmware-realtek
 firmware-atheros
+firmware-mediatek
+firmware-brcm80211
+firmware-ti-connectivity
+firmware-ath9k-htc
+firmware-zd1211
+firmware-carl9170
+
+# Audio on a modern laptop goes through a DSP, and the DSP needs firmware.
+# Without sof-signed the speakers on most Intel machines from about 2019 are
+# simply silent — no error, no device, nothing.
+firmware-sof-signed
+firmware-intel-sound
+firmware-cirrus
 
 # Named here rather than left to dependency resolution. These arrived for
 # Electron, which the image no longer ships, but every one of them is still

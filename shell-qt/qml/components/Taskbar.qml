@@ -56,6 +56,10 @@ Item {
     property bool launcherOpen: false
 
     signal launched(string id)
+    /* Middle click. The convention on every dock that has more than one window
+       per application, and the only way to get a second terminal without going
+       through a context menu. */
+    signal newWindowRequested(string id)
     signal contextRequested(string id, real sx, real sy)
     signal wifiRequested()
     signal powerRequested()
@@ -205,6 +209,10 @@ Item {
 
                     HoverHandler { id: pinHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: root.launched(pin.modelData.id) }
+                    TapHandler {
+                        acceptedButtons: Qt.MiddleButton
+                        onTapped: root.newWindowRequested(pin.modelData.id)
+                    }
                     TapHandler {
                         acceptedButtons: Qt.RightButton
                         onTapped: function (point) {

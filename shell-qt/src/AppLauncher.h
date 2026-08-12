@@ -29,11 +29,27 @@ class AppLauncher : public QObject
 public:
     explicit AppLauncher(QObject *parent = nullptr);
 
-    QStringList openIds() const { return m_open.keys(); }
+    /* Unique ids, not one entry per window: the taskbar shows one tile per
+       application however many of its windows are open. */
+    QStringList openIds() const;
     QStringList startingIds() const { return m_starting.values(); }
     QString lastError() const { return m_lastError; }
 
+    /* Start the application, or do nothing if it is already running. This is
+       what a keyboard shortcut and a single click on the dock use. */
     Q_INVOKABLE void launch(const QString &id);
+    /* Start another copy, whether or not one is running.
+     *
+     * The launcher refused outright to run a second instance — one terminal,
+     * one file manager, one browser window, and a click on a running tile
+     * killed it instead. Wanting two terminals side by side is not an exotic
+     * request; it is most of what a terminal is for. */
+    Q_INVOKABLE void launchNew(const QString &id);
+    /** How many copies of this application the shell has running. */
+    Q_INVOKABLE int instanceCount(const QString &id) const;
+    /* Closes the most recently started copy, not all of them. Closing every
+       terminal because one tile was clicked is not something to do by
+       accident. */
     Q_INVOKABLE void close(const QString &id);
     Q_INVOKABLE bool isInstalled(const QString &id) const;
 
@@ -94,7 +110,13 @@ signals:
 private:
     struct Entry { QString cmd; QStringList args; };
     QHash<QString, Entry> m_catalog;
-    QHash<QString, QProcess *> m_open;
+    /* Multi: one application, many windows. This was a plain QHash, which
+       structurally allowed exactly one process per id — the "already running,
+       do nothing" checks were only enforcing what the container required. */
+    QMultiHash<QString, QProcess *> m_open;
+    /* Set only for the duration of launchNew(), so the launch paths skip their
+       "one copy is enough" check. */
+    bool m_forceNew = false;
     QString m_lastError;
     QVariantList m_discovered;
     QVariantList m_tools;
