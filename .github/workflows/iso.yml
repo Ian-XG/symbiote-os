@@ -104,7 +104,19 @@ jobs:
 
           src="$(find distro -maxdepth 1 -name '*.iso' -print -quit)"
           test -n "$src" || { echo "live-build produced no ISO" >&2; exit 1; }
-          name="symbiote-os-${GITHUB_REF_NAME//\//-}-${GITHUB_SHA::7}-amd64.iso"
+          # Named for the version, because that is what somebody downloading it
+          # is choosing between. It used to carry the branch and a commit hash —
+          # "symbiote-os-claude-os-ui-ux-improvements-1k1isj-5e48ed4-amd64.iso"
+          # — which says nothing about which image is newer and looks like a
+          # build artefact rather than a release. The commit is still recorded,
+          # in the release notes.
+          if [ -n "$ver" ]; then
+            name="Symbiote-os-v${ver}.iso"
+          else
+            # No release marker: still readable, still sortable, and obviously
+            # not a numbered release.
+            name="Symbiote-os-build${GITHUB_RUN_NUMBER}.iso"
+          fi
           mkdir -p out
           mv "$src" "out/$name"
           ( cd out && sha256sum "$name" > SHA256SUMS )
@@ -141,7 +153,7 @@ jobs:
               echo "and verify:"
               echo
               echo '```sh'
-              echo "cat symbiote-os-*.iso.part* > symbiote-os.iso"
+              echo "cat ${name}.part* > ${name}"
               echo "sha256sum -c SHA256SUMS"
               echo '```'
               echo

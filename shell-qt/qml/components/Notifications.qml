@@ -20,12 +20,6 @@ Item {
 
     ListModel { id: queue }
 
-    /* Read by the window that hosts this, which only exists while there is
-       something to show. A permanently present always-on-top surface is a
-       permanent risk of swallowing a click; one that appears for four seconds
-       and goes away again is not. */
-    readonly property int count: queue.count
-
     /* `error` only changes the colour. It does not change whether the message
        is shown: a refusal the operator needs to read is not less important
        than a success. */
@@ -37,10 +31,6 @@ Item {
         while (queue.count > root.maxVisible)
             queue.remove(0)
     }
-
-    /* The host window sizes itself from this, so the stack has to report a
-       height even though it positions itself by anchors. */
-    implicitHeight: col.height + root.bottomInset + 12
 
     Column {
         id: col
