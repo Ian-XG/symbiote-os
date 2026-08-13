@@ -1159,7 +1159,14 @@ Item {
 
         Text {
             id: noticeText
-            anchors { fill: parent; margins: 11 }
+            /* Anchored on three sides, not filled.
+               `fill` also ties this Text's height to the box's, and the box
+               takes its height from this Text's implicitHeight — a cycle, which
+               QML reported as a binding loop and then broke by freezing one
+               side of it. Left, right and top give the Text its width, the
+               wrapped text gives its implicit height, and the box follows. */
+            anchors { left: parent.left; right: parent.right; top: parent.top
+                      margins: 11 }
             text: notice.text
             color: notice.alert ? Theme.alert : Theme.textMuted
             font.family: Theme.mono
