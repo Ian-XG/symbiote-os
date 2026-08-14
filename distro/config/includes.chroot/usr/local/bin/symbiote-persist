@@ -154,17 +154,68 @@ auto)
 	read -r -p "Type ERASE to continue: " confirm
 	[ "$confirm" = "ERASE" ] || { echo "Cancelled."; exit 1; }
 
+	# What was already there, so the new partition can be identified by
+	# difference rather than by position.
+	# Space-separated, deliberately: the membership test below is a glob on
+	# " $BEFORE ", and a newline-separated list never matches " sdaN " because
+	# what follows each name is a newline rather than a space. That mistake made
+	# the very first partition look new; the "refusing to format a mounted
+	# partition" guard below is what caught it, on a disk the system had booted
+	# from.
+	BEFORE=$(lsblk -lno NAME,TYPE "$DEV" | awk '$2=="part"{print $1}' | sort | tr '\n' ' ')
+
 	# ",," means: start after the last partition, use everything left.
 	echo ',,L' | sfdisk --append --no-reread "$DEV" || {
 		echo "Could not add a partition. Is there unallocated space?" >&2
 		exit 1
 	}
-	partprobe "$DEV" 2>/dev/null || true
+
+	# partprobe cannot re-read a table on a disk that is in use; partx can
+	# add the new entry to a live kernel, so try it when partprobe fails.
+	partprobe "$DEV" 2>/dev/null || partx -a "$DEV" 2>/dev/null || true
 	sleep 2
 
-	NEW=$(lsblk -lno NAME,TYPE "$DEV" | awk '$2=="part"{print $1}' | tail -1)
-	[ -n "$NEW" ] || { echo "The new partition did not appear." >&2; exit 1; }
+	AFTER=$(lsblk -lno NAME,TYPE "$DEV" | awk '$2=="part"{print $1}' | sort)
+
+	NEW=""
+	for p in $AFTER; do
+		case " $BEFORE " in
+			*" $p "*) ;;          # was already there
+			*) NEW="$p"; break ;; # appeared just now
+		esac
+	done
+
+	# The partition the kernel has, not the last one it happens to list.
+	#
+	# This used to be `lsblk ... | tail -1`, which is the newest partition only
+	# when the kernel has actually re-read the table. Booted from the very disk
+	# being repartitioned, it cannot: partprobe fails with "device or resource
+	# busy", the `|| true` swallowed it, and tail -1 returned the last partition
+	# the kernel already knew about. On a UEFI stick that is the EFI system
+	# partition, and the next line formatted it -- destroying the bootloader and
+	# producing 3 MB of "persistence" instead of the 18 GB just allocated. The
+	# `-n` check could never catch it, because there is always some partition.
+	if [ -z "$NEW" ]; then
+		echo "The new partition was created but the kernel has not picked it up," >&2
+		echo "which happens when the disk is in use -- as it is, since this system" >&2
+		echo "booted from it. Nothing has been formatted. Reboot and run this" >&2
+		echo "again: the partition is already there and will be visible." >&2
+		exit 1
+	fi
+
 	TARGET="/dev/$NEW"
+
+	# Two guards on the way to mkfs, because what follows is irreversible.
+	if findmnt -S "$TARGET" >/dev/null 2>&1; then
+		echo "$TARGET is mounted. Refusing to format it." >&2
+		exit 1
+	fi
+	case "$(lsblk -no PARTTYPENAME "$TARGET" 2>/dev/null)" in
+		*EFI*|*"EFI System"*)
+			echo "$TARGET is an EFI system partition. Refusing to format it." >&2
+			exit 1 ;;
+	esac
+
 	echo "Formatting $TARGET"
 
 	mkfs.ext4 -q -L persistence -F "$TARGET"

@@ -42,7 +42,9 @@ boot)
   : > "$SERIAL"
   VBoxManage modifyvm "$VM" --uart1 0x3F8 4 --uartmode1 file "$SERIAL"
   VBoxManage startvm "$VM" --type headless >/dev/null || exit 1
-  sleep 100          # measured on this image, not guessed
+  # Measured booting from the ISO; booting from a virtual disk that is still
+  # allocating blocks is slower, so this is the slow case with room to spare.
+  sleep 140
   echo booted
   ;;
 
@@ -50,8 +52,18 @@ term)
   # Ctrl+Alt+T, the shell's own shortcut. greetd runs without logind so the
   # compositor never hands over the VT and Ctrl+Alt+F2 does nothing; going in
   # through the shell also means a failure here is a bug worth knowing about.
-  VBoxManage controlvm "$VM" keyboardputscancode 1d 38 14 94 b8 9d
-  sleep 6; echo terminal
+  #
+  # Sent three times, spaced out. A single chord is silently dropped when the
+  # shell has drawn but its QML shortcuts are not live yet, which happens on a
+  # slower boot -- from a dynamically-allocated virtual disk rather than the
+  # CD, for instance. That cost three runs that looked like the probe hanging.
+  # Extra terminals are harmless; the newest one has focus, which is the one
+  # `run` types into.
+  for _ in 1 2 3; do
+    VBoxManage controlvm "$VM" keyboardputscancode 1d 38 14 94 b8 9d
+    sleep 5
+  done
+  echo terminal
   ;;
 
 type)
@@ -80,6 +92,30 @@ run)
   done
   tail -c "+$((before + 1))" "$SERIAL" | tr -d '\r' \
     | sed -n "/${mark}S/,/${mark}E/p" | grep -v "$mark"
+  ;;
+
+push)
+  # Hand a file to the guest on a tiny ISO, mounted as a second optical drive.
+  #
+  # `run` types its payload through the virtual keyboard, which is fine for a
+  # twenty-line probe and hopeless for anything bigger: planting a 7 KB script
+  # left the guest still echoing here-doc lines after two minutes. There is no
+  # shared folder without guest additions and no server to curl from, but an
+  # ISO is just a file, and attaching one is instant.
+  src="$2"
+  stage=$(mktemp -d)
+  cp "$src" "$stage/payload"
+  iso="$OUT/payload.iso"
+  rm -f "$iso"
+  hdiutil makehybrid -quiet -iso -joliet -o "$iso" "$stage" >/dev/null 2>&1 \
+    || { echo "could not build the payload ISO" >&2; exit 1; }
+  rm -rf "$stage"
+  # Port 1 on the same controller: port 0 holds the image being tested.
+  VBoxManage storageattach "$VM" --storagectl IDE --port 1 --device 0 \
+    --type dvddrive --medium "$iso" 2>/dev/null \
+    || VBoxManage storageattach "$VM" --storagectl IDE --port 1 --device 0 \
+         --type dvddrive --medium "$iso"
+  echo "$iso"
   ;;
 
 shot)
