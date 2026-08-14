@@ -12,7 +12,7 @@ set -euo pipefail
 
 usage() {
 	cat <<'USAGE'
-symbiote-persist — create persistent storage for this live image
+symbiote-persist - create persistent storage for this live image
 
     symbiote-persist list                  show candidate partitions
     symbiote-persist init <device>         format <device> for persistence
@@ -33,10 +33,42 @@ require_root() {
 
 case "${1:-}" in
 list)
-	echo "Partitions on this machine:"
-	lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT,TYPE | awk 'NR==1 || $NF=="part"'
-	echo
-	echo "The live medium itself is mounted; pick a partition that is not."
+	parts=$(lsblk -lno NAME,TYPE | awk '$2=="part"{print $1}')
+	if [ -n "$parts" ]; then
+		echo "Partitions on this machine:"
+		lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINT,TYPE | awk 'NR==1 || $NF=="part"'
+		echo
+		echo "The live medium itself is mounted; pick a partition that is not."
+	else
+		echo "No partitions on this machine."
+	fi
+
+	# Whole disks carrying no partitions at all.
+	#
+	# These were invisible. The table above lists partitions, so a blank spare
+	# drive — the obvious thing to point this at — produced an empty list, and
+	# `init` refuses a whole disk because formatting one destroys the live image
+	# along with it. Between the two there was no way through and nothing saying
+	# so: on a machine with a 20 GB blank disk, `list` printed a header, no rows,
+	# and a line about picking an unmounted partition.
+	blank=""
+	for d in $(lsblk -dno NAME,TYPE | awk '$2=="disk"{print $1}'); do
+		[ -z "$(lsblk -lno NAME,TYPE "/dev/$d" | awk '$2=="part"{print $1}')" ] || continue
+		blank="${blank}  /dev/$d  $(lsblk -dno SIZE "/dev/$d" | tr -d ' ')  no partitions\n"
+	done
+
+	if [ -n "$blank" ]; then
+		echo
+		echo "Disks with no partitions on them:"
+		printf '%b' "$blank"
+		echo
+		echo "init takes a partition, not a disk. To give one of these a single"
+		echo "partition filling it - this erases that disk, so read the name twice:"
+		echo
+		echo "    echo ',,L' | sudo sfdisk /dev/sdX"
+		echo "    sudo partprobe /dev/sdX"
+		echo "    sudo symbiote-persist init /dev/sdX1"
+	fi
 	;;
 
 init)
@@ -48,6 +80,10 @@ init)
 	# the live image along with everything else on the stick.
 	if [ "$(lsblk -no TYPE "$dev" | head -1)" != "part" ]; then
 		echo "$dev is not a partition. Give a partition such as ${dev}1." >&2
+		echo >&2
+		echo "If that disk has none, make one - this erases $dev:" >&2
+		echo "    echo ',,L' | sudo sfdisk $dev" >&2
+		echo "    sudo partprobe $dev" >&2
 		exit 1
 	fi
 	if findmnt -S "$dev" >/dev/null 2>&1; then
@@ -92,7 +128,7 @@ auto)
 
 	MEDIUM=$(findmnt -no SOURCE /run/live/medium 2>/dev/null || true)
 	if [ -z "$MEDIUM" ]; then
-		echo "Not running from live media — nothing to add persistence to." >&2
+		echo "Not running from live media - nothing to add persistence to." >&2
 		exit 1
 	fi
 
@@ -113,7 +149,7 @@ auto)
 	echo
 	echo "This creates a new partition in the unallocated space at the end of"
 	echo "$DEV and formats it. The existing partitions, including the one this"
-	echo "system is running from, are not touched — but partitioning the disk"
+	echo "system is running from, are not touched - but partitioning the disk"
 	echo "you booted from is not risk-free, and there is no undo."
 	read -r -p "Type ERASE to continue: " confirm
 	[ "$confirm" = "ERASE" ] || { echo "Cancelled."; exit 1; }

@@ -28,8 +28,16 @@ SERIAL="$OUT/serial.log"
 
 case "${1:-}" in
 boot)
-  VBoxManage showvminfo "$VM" --machinereadable 2>/dev/null | grep -q 'VMState="running"' \
-    && { VBoxManage controlvm "$VM" poweroff >/dev/null 2>&1; sleep 3; }
+  state=$(VBoxManage showvminfo "$VM" --machinereadable 2>/dev/null \
+          | sed -n 's/^VMState="\(.*\)"$/\1/p')
+  case "$state" in
+    running|paused) "$0" off ;;
+    saved|aborted-saved)
+      # A suspended VM refuses every modifyvm below with "the machine is not
+      # mutable", and restoring the snapshot then fails anyway because the
+      # attached ISO has been replaced underneath it. Throw the state away.
+      VBoxManage discardstate "$VM" >/dev/null 2>&1; sleep 1 ;;
+  esac
   # uartmode "file" appends; truncating keeps one run per file.
   : > "$SERIAL"
   VBoxManage modifyvm "$VM" --uart1 0x3F8 4 --uartmode1 file "$SERIAL"
@@ -79,6 +87,23 @@ shot)
     && echo "$OUT/${2:-shot}.png"
   ;;
 
-off) VBoxManage controlvm "$VM" poweroff >/dev/null 2>&1; echo off ;;
+off)
+  # Clean shutdown, not a yanked cable.
+  #
+  # `poweroff` cuts power instantly. Testing persistence that way produced
+  # files that survived a reboot at zero length: ext4's default journalling
+  # keeps the metadata and loses data blocks that were never flushed, so the
+  # files existed and were empty, which reads exactly like a broken feature.
+  # It was the harness. The ACPI button lets the guest sync and unmount.
+  VBoxManage controlvm "$VM" acpipowerbutton >/dev/null 2>&1
+  for _ in $(seq 1 30); do
+    VBoxManage showvminfo "$VM" --machinereadable 2>/dev/null \
+      | grep -q 'VMState="poweroff"' && { echo off; exit 0; }
+    sleep 2
+  done
+  # It ignored the button, or has no session left to handle it.
+  VBoxManage controlvm "$VM" poweroff >/dev/null 2>&1
+  echo "off (forzado)"
+  ;;
 *) sed -n '15,21p' "$0"; exit 2 ;;
 esac
