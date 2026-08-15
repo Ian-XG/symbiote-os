@@ -16,3 +16,21 @@ fi
 # itself secure should not depend on that staying true.
 systemctl disable ssh.service 2>/dev/null || true
 systemctl mask ssh.service 2>/dev/null || true
+
+# Tor is installed and does not start itself.
+#
+# Debian's package enables it on install, and it was reaching "Bootstrapped
+# 100%" during boot: every start of this image built circuits to the Tor
+# network before anyone had asked for anything. On a machine for security work
+# that is the operator's call, not a default. Booting announces a Tor client to
+# the local network and to whichever guard relay it picks, which is precisely
+# what you would not want on a client site or anywhere its use is noticed.
+#
+# Nothing here routes through it anyway: torsocks and proxychains4 are opt-in,
+# per command. So the daemon was building circuits nobody used, and it was the
+# slowest unit in the boot at 3.3 seconds.
+#
+# Disabled, not masked or removed -- `sudo systemctl start tor` is one command,
+# and the tools that use it are still on the image.
+systemctl disable tor.service 2>/dev/null || true
+systemctl disable tor@default.service 2>/dev/null || true
