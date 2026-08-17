@@ -40,6 +40,9 @@ private:
 
     QVariantList m_rows;
     QTimer m_timer;
+    /** Age of apt's package lists in days, or -1 when it has none. */
+    static int listsAgeDays();
+
     QVariantMap m_updateCache;
     qint64 m_updateCheckedAt = 0;
 };

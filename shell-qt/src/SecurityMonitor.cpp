@@ -198,6 +198,24 @@ QVariantMap SecurityMonitor::encryption()
     return row("Disk encryption", "OFF", "idle");
 }
 
+/* How stale apt's package lists are, in days, or -1 when there are none.
+ *
+ * The newest file wins: apt refreshes them together, so the most recent write
+ * is when this machine last learnt what exists. */
+int SecurityMonitor::listsAgeDays()
+{
+    QDateTime newest;
+    const QFileInfoList files = QDir("/var/lib/apt/lists")
+        .entryInfoList({"*_Packages", "*_InRelease", "*_Release"}, QDir::Files);
+    for (const QFileInfo &fi : files)
+        if (!newest.isValid() || fi.lastModified() > newest)
+            newest = fi.lastModified();
+
+    if (!newest.isValid())
+        return -1;
+    return int(newest.daysTo(QDateTime::currentDateTime()));
+}
+
 QVariantMap SecurityMonitor::updates()
 {
     // apt is slow and the answer barely moves, so it is cached for ten minutes.
@@ -210,8 +228,34 @@ QVariantMap SecurityMonitor::updates()
         m_updateCache = row("Updates", "UNKNOWN", "idle");
     } else {
         const int n = out.count(QRegularExpression("^Inst ", QRegularExpression::MultilineOption));
-        m_updateCache = n == 0 ? row("Updates", "UP TO DATE", "ok")
-                               : row("Updates", QString("%1 PENDING").arg(n), "attention");
+        if (n > 0) {
+            m_updateCache = row("Updates", QString("%1 PENDING").arg(n), "attention");
+        } else {
+            /* Zero pending is only as good as the catalogue it was measured
+               against, and on a live image that catalogue is frozen at build
+               time. apt compares what is installed against /var/lib/apt/lists,
+               which is written once when the image is made and never again
+               unless somebody runs apt update. So an image three months old
+               says "UP TO DATE" with total confidence while three months of
+               security updates exist -- true on the day it was built and
+               quietly false afterwards, which is the worst way for a security
+               panel to be wrong.
+               The age of the lists is the missing half of the answer. */
+            const int days = listsAgeDays();
+            if (days < 0) {
+                /* No package lists at all, so apt had nothing to compare
+                   against and its zero means nothing. Saying "up to date"
+                   here was the same lie in the other direction -- the first
+                   draft of this did exactly that, and the build container,
+                   which ships no lists, is where it showed. */
+                m_updateCache = row("Updates", "UNKNOWN", "idle");
+            } else if (days <= 7) {
+                m_updateCache = row("Updates", "UP TO DATE", "ok");
+            } else {
+                m_updateCache = row("Updates", QString("LISTS %1d OLD").arg(days),
+                                    "attention");
+            }
+        }
     }
     m_updateCheckedAt = now;
     return m_updateCache;
