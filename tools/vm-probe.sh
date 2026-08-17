@@ -26,6 +26,18 @@ OUT="${SYMBIOTE_PROBE_DIR:-${TMPDIR:-/tmp}/symbiote-probe}"
 mkdir -p "$OUT"
 SERIAL="$OUT/serial.log"
 
+# A paused VM swallows every scancode with "failed to send a scancode", and the
+# probe then waits out its whole timeout for output that cannot come. VirtualBox
+# pauses a guest by itself when the host sleeps, which is most of how this
+# happens. Resume before anything that needs the guest awake.
+case "${1:-}" in
+  term|type|run|shot)
+    VBoxManage showvminfo "$VM" --machinereadable 2>/dev/null \
+      | grep -q 'VMState="paused"' \
+      && { VBoxManage controlvm "$VM" resume >/dev/null 2>&1; sleep 2; }
+    ;;
+esac
+
 case "${1:-}" in
 boot)
   state=$(VBoxManage showvminfo "$VM" --machinereadable 2>/dev/null \
