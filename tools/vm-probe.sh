@@ -15,6 +15,7 @@
 #   tools/vm-probe.sh term          open a terminal via the shell's Ctrl+Alt+T
 #   tools/vm-probe.sh run <file>    type <file> into it, capture the output
 #   tools/vm-probe.sh type <text>   type one line and press return
+#   tools/vm-probe.sh unlock        type the password at the idle lock screen
 #   tools/vm-probe.sh shot <name>   screenshot the whole screen
 #   tools/vm-probe.sh off           power off
 #
@@ -128,6 +129,23 @@ push)
     || VBoxManage storageattach "$VM" --storagectl IDE --port 1 --device 0 \
          --type dvddrive --medium "$iso"
   echo "$iso"
+  ;;
+
+unlock)
+  # The idle watchdog locks at ten minutes, so any wait longer than that ends
+  # with swaylock over a black screen and every screenshot after it showing
+  # nothing at all. Two captures were lost to this before it was recognised:
+  # a blanked panel and a locked one look identical from out here.
+  #
+  # Deliberately its own verb rather than something `shot` does by itself.
+  # Unlocking automatically would hide a lock screen that had stopped working,
+  # which is exactly the thing worth hearing about.
+  VBoxManage controlvm "$VM" keyboardputscancode 2a aa >/dev/null 2>&1
+  sleep 3
+  VBoxManage controlvm "$VM" keyboardputstring "${SYMBIOTE_PASS:-symbiote}"
+  VBoxManage controlvm "$VM" keyboardputscancode 1c 9c
+  sleep 6
+  echo unlocked
   ;;
 
 shot)
