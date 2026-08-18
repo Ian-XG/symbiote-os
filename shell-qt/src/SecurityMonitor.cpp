@@ -8,6 +8,7 @@
 #include <QProcess>
 #include <QFile>
 #include <QDir>
+#include <QTextStream>
 #include <QDateTime>
 #include <QRegularExpression>
 
@@ -216,6 +217,46 @@ int SecurityMonitor::listsAgeDays()
     return int(newest.daysTo(QDateTime::currentDateTime()));
 }
 
+/* Whether AppArmor is confining anything, read from the kernel rather than
+ * from systemd.
+ *
+ * Asking systemd only tells you whether a unit ran. On this image the unit was
+ * enabled and skipped itself every boot -- Debian's apparmor.service refuses to
+ * run on live media -- so it reported enabled, loaded no profiles, and confined
+ * nothing. The number of profiles the kernel is actually enforcing is the only
+ * answer that cannot be wrong in that direction.
+ *
+ * /sys/kernel/security/apparmor/profiles is one line per profile, each ending
+ * in its mode: "(enforce)" or "(complain)". Complain-mode profiles log and
+ * permit, so they are counted apart -- reporting them as protection would be
+ * the same lie the panel exists to avoid. */
+QVariantMap SecurityMonitor::apparmor()
+{
+    QFile f(QStringLiteral("/sys/kernel/security/apparmor/profiles"));
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        /* Either the kernel has no AppArmor, or securityfs is not mounted.
+           Both mean nothing is confined; neither means somebody turned it off,
+           so this is not an alarm. */
+        return row("AppArmor", "NOT AVAILABLE", "idle");
+    }
+
+    int enforce = 0, complain = 0;
+    QTextStream in(&f);
+    while (!in.atEnd()) {
+        const QString line = in.readLine();
+        if (line.endsWith(QLatin1String("(enforce)")))
+            ++enforce;
+        else if (line.endsWith(QLatin1String("(complain)")))
+            ++complain;
+    }
+
+    if (enforce == 0 && complain == 0)
+        return row("AppArmor", "NO PROFILES", "attention");
+    if (enforce == 0)
+        return row("AppArmor", QStringLiteral("%1 COMPLAIN ONLY").arg(complain), "attention");
+    return row("AppArmor", QStringLiteral("%1 ENFORCING").arg(enforce), "ok");
+}
+
 QVariantMap SecurityMonitor::updates()
 {
     // apt is slow and the answer barely moves, so it is cached for ten minutes.
@@ -285,7 +326,8 @@ QVariantMap SecurityMonitor::ports()
 
 void SecurityMonitor::sample()
 {
-    m_rows = QVariantList{ firewall(), vpn(), encryption(), updates(), ports(), medium() };
+    m_rows = QVariantList{ firewall(), apparmor(), vpn(), encryption(),
+                           updates(), ports(), medium() };
     emit changed();
 }
 

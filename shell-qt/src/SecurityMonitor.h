@@ -31,6 +31,8 @@ private:
     QVariantMap firewall();
     QVariantMap vpn();
     QVariantMap encryption();
+    /** Profiles the kernel is enforcing, not whether a unit ran. */
+    QVariantMap apparmor();
     QVariantMap updates();
     QVariantMap ports();
     QVariantMap medium();
