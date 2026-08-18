@@ -103,8 +103,22 @@ run)
   for _ in $(seq 1 40); do
     sleep 3; grep -q "${mark}E" "$SERIAL" 2>/dev/null && break
   done
-  tail -c "+$((before + 1))" "$SERIAL" | tr -d '\r' \
-    | sed -n "/${mark}S/,/${mark}E/p" | grep -v "$mark"
+
+  # Say nothing rather than something plausible.
+  #
+  # This used to print the byte range regardless, and when the guest never
+  # answered -- a locked screen swallowing the keystrokes, most often -- the
+  # range still contained an *earlier* run's complete block. The probe then
+  # reported a previous experiment's results as though they were this one's,
+  # which is the exact failure mode this whole project keeps digging out of the
+  # OS itself. An unanswered run is now an error, and a loud one.
+  out=$(tail -c "+$((before + 1))" "$SERIAL" | tr -d '\r' \
+        | sed -n "/${mark}S/,/${mark}E/p" | grep -v "$mark")
+  if ! tail -c "+$((before + 1))" "$SERIAL" | grep -q "${mark}E"; then
+    echo "probe: the guest never answered -- is the screen locked? try: $0 unlock" >&2
+    exit 1
+  fi
+  printf '%s\n' "$out"
   ;;
 
 push)
