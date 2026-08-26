@@ -234,9 +234,25 @@ QVariantMap SecurityMonitor::apparmor()
 {
     QFile f(QStringLiteral("/sys/kernel/security/apparmor/profiles"));
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        /* Either the kernel has no AppArmor, or securityfs is not mounted.
-           Both mean nothing is confined; neither means somebody turned it off,
-           so this is not an alarm. */
+        /* Cannot read the list -- which is the normal case, not an error.
+         *
+         * The profiles file in securityfs is readable only by root, and the
+         * shell runs as the operator. The first version of this row treated a
+         * failed open as "no AppArmor" and so reported NOT AVAILABLE on a
+         * machine enforcing eleven profiles -- shipped in an image, and caught
+         * by looking at the panel it had just been added to.
+         *
+         * The module's own parameter is world-readable, so it can still tell
+         * whether AppArmor is on. What it cannot give is a count, and saying
+         * so is better than implying either extreme. */
+        QFile en(QStringLiteral("/sys/module/apparmor/parameters/enabled"));
+        if (en.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            const QString v = QString::fromLatin1(en.readAll()).trimmed();
+            if (v.startsWith(QLatin1Char('Y')) || v.startsWith(QLatin1Char('1')))
+                return row("AppArmor", "ON · COUNT NEEDS ROOT", "ok");
+        }
+        /* No AppArmor in this kernel, or securityfs is not mounted. Nothing is
+           confined, and nobody turned it off, so this is not an alarm. */
         return row("AppArmor", "NOT AVAILABLE", "idle");
     }
 
