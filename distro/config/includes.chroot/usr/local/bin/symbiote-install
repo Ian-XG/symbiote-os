@@ -25,6 +25,17 @@
 # branding.
 set -eu
 
+# pkexec, as Debian's wrapper does.
+#
+# This briefly used sudo -n instead, on the theory that pkexec hangs here for
+# want of a polkit authentication agent -- `pkexec true` did appear to hang
+# under a ten-second timeout. That reading was wrong: the version of this
+# script using pkexec opens Calamares on this desktop, watched doing it. The
+# hang was an artefact of how that test was invoked, not of pkexec.
+#
+# So it stays pkexec: it is the mechanism polkit exists for, and it does not
+# depend on the passwordless sudo entry, which is a live-session convenience
+# rather than something an installed system should be built on.
 if [ "$(id -u)" -ne 0 ]; then
 	exec pkexec env \
 		SYMBIOTE_WL_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-0}" \
