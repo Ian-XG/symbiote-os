@@ -25,7 +25,13 @@ DESKTOP=/usr/share/applications/calamares-install-debian.desktop
 if [ -f "$DESKTOP" ]; then
 	sed -i 's|^Name=.*|Name=Install Symbiote OS|' "$DESKTOP"
 	sed -i 's|^Comment=.*|Comment=Install this system to a disk|' "$DESKTOP"
+	# Point it at our own launcher. Debian's wrapper cannot open a window on
+	# this desktop -- it needs xhost, which is not installed, and pkexec strips
+	# the Wayland environment it would need afterwards. See symbiote-install.
+	sed -i 's|^Exec=.*|Exec=symbiote-install|' "$DESKTOP"
 fi
+
+chmod 755 /usr/local/bin/symbiote-install 2>/dev/null || true
 
 # A live session should not open the installer over the desktop on every boot.
 rm -f /etc/xdg/autostart/calamares-desktop-icon.desktop

@@ -21,9 +21,10 @@ AppLauncher::AppLauncher(QObject *parent) : QObject(parent)
         // Built into the shell: no binary, so nothing to look for on PATH.
         {"settings", {"", {}}},
         {"files",    {"nautilus", {"--new-window"}}},
-        /* Calamares needs root and asks polkit for it itself; the wrapper is
-           what the Debian package installs for exactly that. */
-        {"install",  {"calamares-install-debian", {}}},
+        /* Our own launcher, not Debian's. Theirs calls xhost, which is not
+           installed, then pkexec, which strips the Wayland environment
+           Calamares needs -- it opened no window at all. */
+        {"install",  {"symbiote-install", {}}},
         {"terminal", {"foot", {}}},
         {"browser",  {"firefox", {}}},
         {"trash",    {"nautilus", {"trash:///"}}},

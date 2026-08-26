@@ -1,0 +1,57 @@
+#!/bin/sh
+# Start the installer on this desktop.
+#
+# Debian ships calamares-install-debian, and on this image it cannot open a
+# window at all. Clicking INSTALL SYSTEM did nothing visible. Three reasons,
+# all of them structural rather than bad luck:
+#
+#   - It calls `xhost` twice, to let root reach an X display. There is no
+#     xhost here and no X display; this is a Wayland session. Both calls fail
+#     with "command not found" onto a stream nobody reads.
+#
+#   - It runs `pkexec calamares`, and pkexec deliberately clears the
+#     environment. WAYLAND_DISPLAY and XDG_RUNTIME_DIR do not survive it --
+#     measured: zero of the two. Calamares then finds no Wayland to talk to.
+#
+#   - Falling back, Qt tries X11 and dies on "Cannot open display :0".
+#
+# Handing root the operator's XDG_RUNTIME_DIR is not enough either: Qt refuses
+# a runtime directory owned by somebody else and drops to X11 again. So root
+# gets a runtime directory of its own and the compositor's socket is named by
+# absolute path, which libwayland accepts and which sidesteps the ownership
+# check entirely.
+#
+# Verified by running it: the installer opens, on Wayland, with the Symbiote
+# branding.
+set -eu
+
+if [ "$(id -u)" -ne 0 ]; then
+	exec pkexec env \
+		SYMBIOTE_WL_SOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/${WAYLAND_DISPLAY:-wayland-0}" \
+		"$0" "$@"
+fi
+
+sock="${SYMBIOTE_WL_SOCK:-}"
+if [ -z "$sock" ] || [ ! -S "$sock" ]; then
+	# Find it rather than guess: there is exactly one graphical session here.
+	sock=$(ls /run/user/*/wayland-[0-9] 2>/dev/null | head -1)
+fi
+if [ -z "$sock" ] || [ ! -S "$sock" ]; then
+	echo "symbiote-install: no Wayland display found; is the desktop running?" >&2
+	exit 1
+fi
+
+# Root's own, so Qt does not refuse it.
+mkdir -p /run/user/0
+chmod 700 /run/user/0
+
+# English. The image ships only English and the C fallback -- the slim hook
+# removes every other locale -- and with no LANG set Calamares picked
+# Slovak, which is what an unset language looks like from inside its list.
+exec env \
+	XDG_RUNTIME_DIR=/run/user/0 \
+	WAYLAND_DISPLAY="$sock" \
+	QT_QPA_PLATFORM=wayland \
+	LANG=C.UTF-8 \
+	LC_ALL=C.UTF-8 \
+	calamares "$@"
