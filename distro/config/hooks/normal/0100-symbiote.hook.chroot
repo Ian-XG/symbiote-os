@@ -56,4 +56,24 @@ systemctl disable getty@tty1.service || true
 systemctl enable getty@tty2.service || true
 systemctl enable getty@tty3.service || true
 
+# A real English locale.
+#
+# The image generated none at all: `locale -a` listed C, C.utf8 and POSIX and
+# nothing else, because nothing ever ran locale-gen. Everything that asks the
+# system what language it is in therefore got "C", which names no language --
+# and Calamares, which asks Qt, answered by opening in Slovak on one boot and
+# Finnish on the next. An installer that greets you in a language you did not
+# pick, on an image that ships only English, reads as broken before it has done
+# anything.
+#
+# One locale, about three megabytes in the archive. The slim hook strips
+# message catalogues under /usr/share/locale and leaves /usr/lib/locale alone,
+# so this survives it.
+echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
+locale-gen >/dev/null 2>&1 || true
+printf 'LANG=en_US.UTF-8\n' > /etc/default/locale
+locale -a 2>/dev/null | grep -qi "en_US" \
+	&& echo "I: en_US.UTF-8 generated" \
+	|| echo "W: en_US.UTF-8 was not generated"
+
 echo "I: symbiote session configured"

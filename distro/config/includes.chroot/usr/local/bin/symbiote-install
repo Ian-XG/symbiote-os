@@ -56,13 +56,23 @@ fi
 mkdir -p /run/user/0
 chmod 700 /run/user/0
 
-# English. The image ships only English and the C fallback -- the slim hook
-# removes every other locale -- and with no LANG set Calamares picked
-# Slovak, which is what an unset language looks like from inside its list.
+# English, named as a real locale rather than as C.
+#
+# This said C.UTF-8, and that is why the installer kept opening in a language
+# nobody chose -- Slovak once, Finnish the next boot. Qt asks QLocale::system()
+# which language to use; "C" names no language, so Calamares finds no match in
+# its translation list and takes whatever the iteration happens to hand it,
+# which is why it differed run to run.
+#
+# en_US.UTF-8 is a language Qt can match, and the image now generates it (see
+# the locale block in 0100-symbiote.hook.chroot) so it is a real locale and not
+# just a string. Verified by running Calamares with it: the window comes up as
+# "Symbiote OS Installer", the welcome page in English, "American English"
+# selected in the language box.
 exec env \
 	XDG_RUNTIME_DIR=/run/user/0 \
 	WAYLAND_DISPLAY="$sock" \
 	QT_QPA_PLATFORM=wayland \
-	LANG=C.UTF-8 \
-	LC_ALL=C.UTF-8 \
+	LANG=en_US.UTF-8 \
+	LC_ALL=en_US.UTF-8 \
 	calamares "$@"
