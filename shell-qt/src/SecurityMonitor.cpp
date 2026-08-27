@@ -245,6 +245,38 @@ QVariantMap SecurityMonitor::apparmor()
          * The module's own parameter is world-readable, so it can still tell
          * whether AppArmor is on. What it cannot give is a count, and saying
          * so is better than implying either extreme. */
+        /* The counts, taken by root at boot and left where anyone can read
+           them -- see symbiote-aa-status. The kernel refuses the profiles file
+           to anyone without CAP_MAC_ADMIN, and that is not a file mode: the
+           file is already world-readable and a normal user still gets EACCES,
+           so there is no permission to fix. A snapshot is the only way the
+           desktop gets a number at all. */
+        QFile snap(QStringLiteral("/run/symbiote/apparmor-status"));
+        if (snap.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            int enf = -1, comp = -1;
+            bool avail = false;
+            QTextStream sin(&snap);
+            while (!sin.atEnd()) {
+                const QString line = sin.readLine();
+                if (line == QLatin1String("available=yes")) avail = true;
+                else if (line.startsWith(QLatin1String("enforce=")))
+                    enf = line.mid(8).toInt();
+                else if (line.startsWith(QLatin1String("complain=")))
+                    comp = line.mid(9).toInt();
+            }
+            if (avail && enf >= 0) {
+                if (enf > 0)
+                    return row("AppArmor", QStringLiteral("%1 ENFORCING").arg(enf), "ok");
+                if (comp > 0)
+                    return row("AppArmor",
+                               QStringLiteral("%1 COMPLAIN ONLY").arg(comp), "attention");
+                return row("AppArmor", "NO PROFILES", "attention");
+            }
+        }
+
+        /* No snapshot. The module's own parameter is world-readable, so the
+           panel can still say whether AppArmor is on -- just not how much of
+           it is doing anything. */
         QFile en(QStringLiteral("/sys/module/apparmor/parameters/enabled"));
         if (en.open(QIODevice::ReadOnly | QIODevice::Text)) {
             const QString v = QString::fromLatin1(en.readAll()).trimmed();

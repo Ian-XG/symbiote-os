@@ -85,4 +85,7 @@ locale -a 2>/dev/null | grep -qi "en_US" \
 	&& echo "I: en_US.UTF-8 generated" \
 	|| echo "W: en_US.UTF-8 was not generated"
 
+chmod 755 /usr/local/bin/symbiote-aa-status 2>/dev/null || true
+systemctl enable symbiote-aa-status.service || true
+
 echo "I: symbiote session configured"

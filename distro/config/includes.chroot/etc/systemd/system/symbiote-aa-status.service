@@ -1,0 +1,18 @@
+[Unit]
+Description=Publish AppArmor profile counts for the desktop
+# After, and Wants rather than Requires: if AppArmor is not there at all this
+# should still run and write available=no, so the panel can say so rather than
+# showing nothing.
+After=apparmor.service
+Wants=apparmor.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/symbiote-aa-status
+# `systemctl reload symbiote-aa-status` refreshes the numbers after loading a
+# profile by hand, which is the one way they can go stale.
+ExecReload=/usr/local/bin/symbiote-aa-status
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,38 @@
+#!/bin/sh
+# Publish AppArmor's profile counts somewhere the desktop can read them.
+#
+# /sys/kernel/security/apparmor/profiles is refused to anyone without
+# CAP_MAC_ADMIN, and that is a kernel check rather than a file mode: the file
+# is already -r--r--r-- and the directory 0755, and a normal user still gets
+# EACCES. chmod on it succeeds and changes nothing. So the shell, which runs as
+# the operator, cannot count profiles itself and the Security panel could only
+# say "count needs root".
+#
+# This runs as root once AppArmor has loaded its profiles and writes the two
+# numbers where anyone can read them. The timestamp goes in the file because a
+# snapshot that cannot say when it was taken is the kind of number that quietly
+# stops being true.
+set -eu
+
+OUT=/run/symbiote
+FILE=$OUT/apparmor-status
+SRC=/sys/kernel/security/apparmor/profiles
+
+mkdir -p "$OUT"
+
+if [ ! -r "$SRC" ]; then
+	printf 'available=no\n' > "$FILE"
+	chmod 0644 "$FILE"
+	exit 0
+fi
+
+enforce=$(grep -c '(enforce)$' "$SRC" 2>/dev/null || echo 0)
+complain=$(grep -c '(complain)$' "$SRC" 2>/dev/null || echo 0)
+
+{
+	printf 'available=yes\n'
+	printf 'enforce=%s\n' "$enforce"
+	printf 'complain=%s\n' "$complain"
+	printf 'taken=%s\n' "$(date -u +%s)"
+} > "$FILE"
+chmod 0644 "$FILE"
