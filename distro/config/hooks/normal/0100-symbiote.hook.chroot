@@ -69,8 +69,17 @@ systemctl enable getty@tty3.service || true
 # One locale, about three megabytes in the archive. The slim hook strips
 # message catalogues under /usr/share/locale and leaves /usr/lib/locale alone,
 # so this survives it.
+# locale-gen's output is not silenced. The first version of this sent it to
+# /dev/null under a `|| true`, so when it failed -- the locales package was not
+# in the chroot at all, only in the final image as somebody else's dependency
+# -- there was nothing to say why. The warning below caught the failure; the
+# silence made it take a container to explain.
 echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
-locale-gen >/dev/null 2>&1 || true
+if command -v locale-gen >/dev/null 2>&1; then
+	locale-gen
+else
+	echo "E: locale-gen is missing -- the locales package is not installed" >&2
+fi
 printf 'LANG=en_US.UTF-8\n' > /etc/default/locale
 locale -a 2>/dev/null | grep -qi "en_US" \
 	&& echo "I: en_US.UTF-8 generated" \
