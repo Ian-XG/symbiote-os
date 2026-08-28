@@ -41,6 +41,17 @@ QtObject {
     readonly property color accentBright: blue ? "#2979ff" : "#1aff00"
     readonly property color accentDim:    blue ? "#0a2f4d" : "#04412a"
     readonly property color alert:        "#ff1744"    // critical stays red in both
+    /* Amber, and the only hue in the palette that is neither accent nor alert.
+     *
+     * "attention" used to be accentBright -- #1aff00 against the accent's
+     * #00ff88. Two greens a few degrees apart, indistinguishable at the size a
+     * status dot is drawn, so a row asking to be looked at read exactly like a
+     * row that was fine. The panel had four states and showed three.
+     *
+     * Red stays reserved for critical, so attention cannot borrow it. Amber is
+     * what everything else in the world uses for this and it cannot be
+     * confused with either neighbour. */
+    readonly property color warn:         "#ffb300"
 
     // ── text ───────────────────────────────────────────────────
     readonly property color textBody:     "#c8c8c8"
@@ -124,7 +135,7 @@ QtObject {
     function stateColor(state) {
         switch (state) {
         case "ok":        return accent
-        case "attention": return accentBright
+        case "attention": return warn
         case "critical":  return alert
         case "idle":      return textMuted
         default:          return textMuted

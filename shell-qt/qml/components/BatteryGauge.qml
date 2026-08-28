@@ -30,10 +30,13 @@ Item {
     implicitWidth: cell.width + cap.width + (showLabel ? label.width + 7 : 0)
     implicitHeight: 14
 
-    /* Running low pulses. The palette is monochrome green with red reserved
-       for genuinely critical states, so colour alone cannot carry the warning:
-       the "attention" green is brighter than the normal one, which reads as
-       healthier rather than worse. Movement is unambiguous either way. */
+    /* Running low pulses, as well as changing colour.
+       This note used to say colour could not carry the warning at all: the
+       "attention" shade was a brighter green than the healthy one, so a nearly
+       flat battery glowed like a compliment. That is fixed at the source --
+       attention is amber now -- and the pulse stays because motion says the
+       same thing again, and says it to someone who cannot tell the two hues
+       apart. */
     SequentialAnimation on opacity {
         running: root.low && root.present
         loops: Animation.Infinite

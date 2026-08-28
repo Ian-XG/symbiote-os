@@ -337,7 +337,14 @@ QVariantMap SecurityMonitor::updates()
                    here was the same lie in the other direction -- the first
                    draft of this did exactly that, and the build container,
                    which ships no lists, is where it showed. */
-                m_updateCache = row("Updates", "UNKNOWN", "idle");
+                /* Named for what it is, rather than "unknown".
+                 *
+                 * The slim hook clears /var/lib/apt/lists to keep the image
+                 * small, so a shipped image has none and apt's zero is
+                 * meaningless. UNKNOWN was honest and read like a
+                 * malfunction; this says what is missing, which is also what
+                 * to do about it -- apt update, and the row starts answering. */
+                m_updateCache = row("Updates", "NO PACKAGE LISTS", "attention");
             } else if (days <= 7) {
                 m_updateCache = row("Updates", "UP TO DATE", "ok");
             } else {
