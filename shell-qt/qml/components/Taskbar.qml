@@ -304,14 +304,21 @@ Item {
                         stroke: pin.lit ? Theme.accent : Theme.textMuted
                     }
 
-                    // Open indicator: a bar, wide when running.
+                    /* Open indicator: a bar that grows out of nothing.
+                     *
+                     * It used to rest at 4px in Theme.line rather than at
+                     * zero, so every pinned icon carried an identical grey
+                     * dash underneath whether it was running or not -- seven
+                     * marks saying seven different things and looking the
+                     * same, which is the one thing a running indicator must
+                     * not do. Now the mark exists only while the app does. */
                     Rectangle {
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 5
-                        width: (pin.isOpen || pin.isStarting) ? 14 : 4
+                        width: (pin.isOpen || pin.isStarting) ? 14 : 0
                         height: 2
-                        color: (pin.isOpen || pin.isStarting) ? Theme.accent : Theme.line
+                        color: Theme.accent
                         Behavior on width { NumberAnimation { duration: Prefs.dur(Theme.durFast) } }
                         SequentialAnimation on opacity {
                             running: pin.isStarting && Prefs.motionOn

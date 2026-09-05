@@ -43,21 +43,39 @@ Item {
     HoverHandler { id: hover; enabled: field.enabled; cursorShape: Qt.IBeamCursor }
     TapHandler { enabled: field.enabled; onTapped: input.forceActiveFocus() }
 
+    /* The prompt, and it must not look like content.
+     *
+     * It was drawn in the accent green at the input's own size and family, so
+     * the launcher's box read as though someone had already typed "search"
+     * into it, with the placeholder trailing after the caret. A field that
+     * appears to hold text you did not enter is a field you have to clear
+     * before you trust it. Muted, smaller, tracked out, and fenced off with a
+     * rule: unmistakably part of the frame rather than part of the value. */
     Text {
         id: tag
         visible: field.label !== ""
         anchors { left: parent.left; leftMargin: 10; verticalCenter: parent.verticalCenter }
-        text: field.label
-        color: Theme.accent
+        text: field.label.toUpperCase()
+        color: Theme.textMuted
         font.family: Theme.mono
-        font.pixelSize: Theme.sizeSm
+        font.pixelSize: Theme.size2xs
+        font.letterSpacing: Theme.trackWide
+    }
+
+    Rectangle {
+        id: tagRule
+        visible: tag.visible
+        anchors { left: tag.right; leftMargin: 9; verticalCenter: parent.verticalCenter }
+        width: 1
+        height: Math.round(field.height * 0.5)
+        color: Theme.line
     }
 
     TextInput {
         id: input
         enabled: field.enabled
-        anchors { left: tag.visible ? tag.right : parent.left
-                  leftMargin: tag.visible ? 8 : 10
+        anchors { left: tag.visible ? tagRule.right : parent.left
+                  leftMargin: tag.visible ? 9 : 10
                   right: parent.right; rightMargin: 10
                   verticalCenter: parent.verticalCenter }
         echoMode: field.password ? TextInput.Password : TextInput.Normal

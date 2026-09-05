@@ -265,7 +265,13 @@ Item {
             }
             Text {
                 text: Store.persistent() ? "persistent" : "live · not persistent"
-                color: Store.persistent() ? Theme.textMuted : Theme.alert
+                /* Amber, not red. Running from the USB without persistence is
+                   the ordinary state of a live image, not a fault -- and red
+                   is what the shell uses for a temperature over 85°, a failed
+                   pairing, a process being killed. Spending it on the normal
+                   case is how it stops meaning anything. It is still worth
+                   saying: settings changed here do not survive a reboot. */
+                color: Store.persistent() ? Theme.textMuted : Theme.warn
                 font.family: Theme.mono
                 font.pixelSize: Theme.size2xs
             }
