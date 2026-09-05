@@ -21,7 +21,10 @@ Item {
 
     TraySheet {
         width: 440
-        height: Math.min(440, root.height - root.inset - 40)
+        // Tall enough for a list, or just tall enough for the sentence saying
+        // there will not be one. See NetworkPanel.nothingToList.
+        height: Math.min(net.nothingToList ? 152 : 440,
+                         root.height - root.inset - 40)
         edge: root.edge
         inset: root.inset
         shown: root.visible
@@ -56,6 +59,7 @@ Item {
         }
 
         NetworkPanel {
+            id: net
             anchors {
                 top: head.bottom; topMargin: 4
                 left: parent.left; leftMargin: 16

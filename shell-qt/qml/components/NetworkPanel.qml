@@ -21,6 +21,13 @@ Item {
     /** Set when the operator asks to replace the key of a network we know. */
     property string retyping: ""
 
+    /* True when there will never be a list: no radio, so no scan, no rows, no
+     * SCAN button that would do anything. The tray sheet reads this to stop
+     * reserving four hundred pixels of list height for one sentence -- a panel
+     * that tall with two lines at the top of it looks like it is still
+     * loading, which is the wrong thing to say about a permanent condition. */
+    readonly property bool nothingToList: !Network.available
+
     function connectedSsid() {
         for (var i = 0; i < Network.networks.length; i++)
             if (Network.networks[i].connected) return Network.networks[i].ssid
