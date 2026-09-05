@@ -43,7 +43,9 @@ Column {
                     // Anything needing attention pulses; steady states do not,
                     // so movement always means something.
                     SequentialAnimation on opacity {
-                        running: modelData.state === "critical" || modelData.state === "attention"
+                        running: Prefs.motionOn
+                                 && (modelData.state === "critical"
+                                     || modelData.state === "attention")
                         loops: Animation.Infinite
                         NumberAnimation { to: 0.35; duration: Theme.durPulse / 2 }
                         NumberAnimation { to: 1.0;  duration: Theme.durPulse / 2 }

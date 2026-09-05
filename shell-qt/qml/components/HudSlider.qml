@@ -107,13 +107,18 @@ Item {
             id: rail
             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
             height: 3
-            color: Theme.line
+            /* Theme.line is all but the background, so at low volume the rail
+               vanished and the fill read as a mark at an arbitrary place
+               rather than a proportion of a range -- the same fault the rail's
+               meters and the process bars had. With nothing to control the
+               track goes back to being invisible, which is the point. */
+            color: sl.absent ? Theme.line : Theme.tint(0.10)
 
             Rectangle {
+                visible: !sl.absent
                 height: parent.height
                 width: parent.width * sl.fraction
-                color: sl.absent ? Theme.line
-                     : sl.muted ? Theme.alert : Theme.accent
+                color: sl.muted ? Theme.alert : Theme.accent
                 // No animation while dragging: the fill must track the finger,
                 // not chase it.
                 Behavior on width {

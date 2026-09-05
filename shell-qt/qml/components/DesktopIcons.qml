@@ -97,7 +97,7 @@ Column {
                     color: Theme.accent
                     anchors { top: parent.top; right: parent.right; margins: 5 }
                     SequentialAnimation on opacity {
-                        running: cell.isStarting
+                        running: cell.isStarting && Prefs.motionOn
                         loops: Animation.Infinite
                         NumberAnimation { to: 0.2; duration: 520 }
                         NumberAnimation { to: 1.0; duration: 520 }

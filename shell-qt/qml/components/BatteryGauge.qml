@@ -45,7 +45,7 @@ Item {
        same thing again, and says it to someone who cannot tell the two hues
        apart. */
     SequentialAnimation on opacity {
-        running: root.low && root.present
+        running: root.low && root.present && Prefs.motionOn
         loops: Animation.Infinite
         NumberAnimation { to: 0.45; duration: Theme.durPulse / 2 }
         NumberAnimation { to: 1.0;  duration: Theme.durPulse / 2 }
@@ -74,7 +74,7 @@ Item {
             /* Charging reads as motion, not as a static colour: the fill
                breathes while power is going in. */
             SequentialAnimation on opacity {
-                running: root.charging
+                running: root.charging && Prefs.motionOn
                 loops: Animation.Infinite
                 NumberAnimation { to: 0.8; duration: 1100; easing.type: Easing.InOutSine }
                 NumberAnimation { to: 0.3; duration: 1100; easing.type: Easing.InOutSine }
