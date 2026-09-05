@@ -22,8 +22,15 @@ Item {
     readonly property bool low: percent <= 20 && !charging
     readonly property bool critical: percent <= 10 && !charging
 
+    /* Amber for low, via the same token every other "attention" uses.
+       This read Theme.accentBright, which is the brighter green -- so a
+       battery under 20% glowed harder than a healthy one. The note below was
+       written when the palette had no amber and claimed the problem was fixed
+       at the source; it was fixed for everything that goes through
+       Theme.stateColor, and this component does not, so the one place the
+       fault was first noticed kept it. */
     readonly property color tint: critical ? Theme.alert
-                                : low ? Theme.accentBright
+                                : low ? Theme.warn
                                 : charging ? Theme.accent
                                 : Theme.textBody
 

@@ -15,10 +15,16 @@ Item {
     property int samples: 40
     property bool critical: false
     property bool paused: false
+    /* False when there is nothing being measured -- no interface at all, as
+     * opposed to an interface that is idle. Both draw a flat line at zero, so
+     * without this the two are the same picture, and the accent green says a
+     * live link is sitting quiet when in fact there is no link. */
+    property bool live: true
     /** Real values, 0..1, oldest first. */
     property var series: []
 
-    readonly property color tint: critical ? Theme.alert : Theme.accent
+    readonly property color tint: !live ? Theme.textMuted
+                                        : critical ? Theme.alert : Theme.accent
 
     function pointAt(i) {
         if (!series || series.length === 0)

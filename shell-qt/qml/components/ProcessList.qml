@@ -142,10 +142,19 @@ Item {
                     anchors.top: nameText.bottom
                     anchors.topMargin: 3
                     height: 2
-                    color: Theme.line
+                    /* Was Theme.line, which is all but the background colour:
+                       the track vanished and the bar read as a floating mark
+                       at an arbitrary place rather than a proportion of a
+                       whole. Same wash the rail's meters use. */
+                    color: Theme.tint(0.10)
                     Rectangle {
                         height: parent.height
-                        width: Math.max(2, parent.width * (modelData.cpu / parent.parent.peak))
+                        /* No minimum width. It used to floor at 2px so a bar
+                           was always visible, which meant an idle process at
+                           0.0% still showed a mark — a number and a picture
+                           disagreeing on the same row. With the track visible
+                           an empty bar is legible on its own. */
+                        width: parent.width * (modelData.cpu / parent.parent.peak)
                         color: parent.parent.hot ? Theme.alert : Theme.accent
                     }
                 }

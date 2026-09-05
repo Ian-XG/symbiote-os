@@ -38,6 +38,9 @@ private slots:
     void sample();
 
 private:
+    // Recovers a name the kernel truncated to 15 characters. See the .cpp.
+    static QString fullName(int pid, const QString &comm);
+
     QVariantList m_top;
     QHash<int, qint64> m_prevTicks;
     QElapsedTimer m_clock;

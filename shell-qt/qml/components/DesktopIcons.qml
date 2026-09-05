@@ -113,14 +113,13 @@ Column {
                     font.pixelSize: 8
                 }
 
-                Text {
-                    text: cell.modelData.code || ""
-                    color: Theme.textMuted
-                    opacity: cell.lit ? 0.9 : 0.45
-                    font.family: Theme.mono
-                    font.pixelSize: 6
-                    anchors { bottom: parent.bottom; left: parent.left; margins: 4 }
-                }
+                /* The little "FS_00" tag that used to sit in this corner is
+                   gone. Six pixels, below the smallest size in the type scale,
+                   at 45% opacity, tucked against the frame's own border: not
+                   readable at any screen density, and the strings were invented
+                   identifiers that named nothing the operator could use. The
+                   icon already carries its name underneath, in type meant to be
+                   read. It was grime dressed as telemetry. */
             }
 
             Text {

@@ -1022,7 +1022,7 @@ Item {
 
                 SettingGroup {
                     title: "THIS BOOT"
-                    note: Security.okCount + " checks ok"
+                    note: Security.okCount + (Security.okCount === 1 ? " check ok" : " checks ok")
 
                     /* States what is actually true of this boot rather than
                        assuming. Settings that quietly evaporate on reboot are

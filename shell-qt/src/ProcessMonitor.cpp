@@ -76,7 +76,7 @@ void ProcessMonitor::sample()
     for (int i = 0; i < qMin(m_limit, int(rows.size())); ++i) {
         QVariantMap m;
         m["pid"] = rows[i].pid;
-        m["name"] = rows[i].name;
+        m["name"] = fullName(rows[i].pid, rows[i].name);
         m["cpu"] = QString::number(rows[i].cpu, 'f', 1).toDouble();
         m["rssMb"] = rows[i].rssMb;
         out.append(m);
@@ -85,6 +85,38 @@ void ProcessMonitor::sample()
     m_prevTicks = current;
     m_top = out;
     emit changed();
+}
+
+
+/* The kernel's comm field is 15 characters and it does not say when it has
+ * truncated. The panel therefore listed "symbiote-shell-" -- exactly fifteen
+ * -- which reads as a rendering fault, and any two programs whose names agree
+ * for fifteen characters were indistinguishable. QML's elide cannot help: by
+ * the time the name reaches it the tail is already gone.
+ *
+ * cmdline has the whole thing. It is only read for a name that is at the
+ * limit, and only for the rows actually shown, so the common case still costs
+ * one file per process rather than two.
+ */
+QString ProcessMonitor::fullName(int pid, const QString &comm)
+{
+    if (comm.size() < 15)
+        return comm;
+
+    QFile f(QStringLiteral("/proc/%1/cmdline").arg(pid));
+    if (!f.open(QIODevice::ReadOnly))
+        return comm;
+
+    // NUL-separated argv. argv[0] is the path the program was invoked with.
+    const QByteArray raw = f.readAll();
+    const QString argv0 = QString::fromUtf8(raw.left(raw.indexOf('\0')));
+    if (argv0.isEmpty())
+        return comm;                        // kernel thread: cmdline is empty
+
+    const QString base = argv0.section('/', -1);
+    // Only trust it if it agrees with what the kernel truncated, otherwise the
+    // process has rewritten its own argv and comm is the more honest answer.
+    return base.startsWith(comm) ? base : comm;
 }
 
 

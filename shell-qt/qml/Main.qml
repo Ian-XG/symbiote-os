@@ -565,8 +565,9 @@ Window {
                     MicroReadout {
                         code: System.thermal.fanRpm ? "FAN " + System.thermal.fanRpm + " RPM" : "NO FAN DATA"
                         label: "TEMPERATURE"
-                        value: System.thermal.celsius === undefined || System.thermal.celsius === null
-                               ? "NO SENSOR" : System.thermal.celsius + "°C"
+                        known: System.thermal.celsius !== undefined
+                               && System.thermal.celsius !== null
+                        value: known ? System.thermal.celsius + "°C" : "NO SENSOR"
                         filled: System.thermal.celsius ? Math.round(System.thermal.celsius / 12.5) : 0
                         critical: System.thermal.celsius > 85
                     }
@@ -577,9 +578,23 @@ Window {
                         width: parent.width
                         height: 34
 
+                        /* Same reading order as the MicroReadouts above it:
+                           name and reading on one line, detail quiet below.
+                           This row kept the old arrangement -- "2H 40M
+                           REMAINING" on top and the word BATTERY under it --
+                           after the others were changed, so the rail asked the
+                           eye to run the last row backwards. */
                         Text {
-                            id: battCode
-                            anchors.left: parent.left
+                            id: battName
+                            anchors { left: parent.left; top: parent.top }
+                            text: "BATTERY"
+                            color: Theme.textBody
+                            font.family: Theme.mono
+                            font.pixelSize: Theme.size2xs
+                            font.letterSpacing: Theme.trackWide
+                        }
+                        Text {
+                            anchors { left: parent.left; top: battName.bottom; topMargin: 2 }
                             text: !Power.present ? "NO BATTERY"
                                 : Power.onAc ? (Power.remaining ? Power.remaining + " TO FULL"
                                                                 : "CHARGING")
@@ -588,15 +603,6 @@ Window {
                             color: Theme.textMuted
                             font.family: Theme.mono
                             font.pixelSize: Theme.size2xs
-                            font.letterSpacing: Theme.trackWide
-                        }
-                        Text {
-                            anchors { left: parent.left; top: battCode.bottom; topMargin: 1 }
-                            text: "BATTERY"
-                            color: Theme.textBody
-                            font.family: Theme.mono
-                            font.pixelSize: Theme.sizeXs
-                            font.letterSpacing: Theme.trackWide
                         }
                         BatteryGauge {
                             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -622,6 +628,10 @@ Window {
                         id: netTrace
                         width: parent.width
                         height: 40 * win.s
+                        live: {
+                            var p = System.primaryInterface()
+                            return !!(p && p.name)
+                        }
 
                         /* Real throughput, scaled against the highest rate seen
                            this session so a 2 MB/s burst on a quiet link is
@@ -665,7 +675,23 @@ Window {
             Panel {
                 width: parent.width
                 title: "SECURITY"
-                code: Security.okCount + " CHECKS OK"
+                // "1 CHECKS OK" read as unfinished, which is a bad look on a
+                // panel whose whole job is being trusted.
+                code: Security.okCount + (Security.okCount === 1 ? " CHECK OK" : " CHECKS OK")
+                /* The bright frame is the only thing on the rail that says
+                   "look here", and it was hardcoded on two panels and off on
+                   the other two -- decoration where a signal was implied. It
+                   is worth something only if it tracks a condition, so the
+                   panel lights when a check wants attention and is otherwise
+                   as quiet as the rest. */
+                active: {
+                    for (var i = 0; i < Security.rows.length; i++) {
+                        var st = Security.rows[i].state
+                        if (st === "attention" || st === "critical")
+                            return true
+                    }
+                    return false
+                }
                 StatusList {
                     width: parent.width
                     rows: Security.rows
