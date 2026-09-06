@@ -723,6 +723,29 @@ Window {
         }
     }
 
+    /* Says there is more rail below.
+     *
+     * On an 800px-tall screen SYSTEM, NETWORK and SECURITY use nearly the
+     * whole column, so PROCESSES starts a few pixels above the fold: its
+     * header showed, its rows did not, and the header cheerfully said "2 OF
+     * 8" about two rows nobody could see. The rail has always scrolled --
+     * there was simply nothing anywhere saying so, and a panel cut off with
+     * no scroll affordance reads as a rendering fault rather than as content
+     * continuing. */
+    Rectangle {
+        anchors {
+            left: rail.left; right: rail.right; bottom: rail.bottom
+        }
+        height: 28 * win.s
+        visible: rail.contentHeight > rail.height + 1
+        opacity: rail.atYEnd ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: Prefs.dur(Theme.durFast) } }
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "transparent" }
+            GradientStop { position: 1.0; color: Theme.bgVoid }
+        }
+    }
+
     // ── app launcher ───────────────────────────────────────────
     AppLauncher {
         id: launcherPanel
