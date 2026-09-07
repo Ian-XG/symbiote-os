@@ -81,7 +81,11 @@ Column {
 
                 AppIcon {
                     anchors.centerIn: parent
-                    width: 30; height: 30
+                    /* 30 in a 62px frame left the glyph sitting in the middle
+                       of a lot of nothing -- under half the tile, so the frame
+                       read as the object and the icon as a detail inside it.
+                       36 is about the ratio a tiled icon usually wants. */
+                    width: 36; height: 36
                     glyph: cell.modelData.glyph
                     source: Prefs.iconPaths[cell.modelData.id] || ""
                     lit: cell.lit

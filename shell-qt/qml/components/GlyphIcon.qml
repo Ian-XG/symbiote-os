@@ -14,8 +14,26 @@ Shape {
 
     property string glyph: ""
     property color stroke: Theme.textBody
-    property real thin: 1.0
-    property real bold: 1.3
+
+    /* Stroke weight follows the box, because the geometry does.
+     *
+     * These were absolute -- 1.0 and 1.3 at every size -- while everything
+     * they draw is scaled by u. A 14px settings glyph in the launcher list
+     * therefore laid thirty units of detail down at the same stroke as the
+     * 30px one on the desktop: more than twice as heavy in proportion, with
+     * its inner ring and its teeth closing up into a blob, while the desktop
+     * icons went spidery next to the text beside them. Same number at every
+     * size is not the same look at every size.
+     *
+     * The square root rather than u itself, because that is how a drawn mark
+     * actually has to behave: a small glyph does need relatively more weight
+     * than a strict proportion would give it, just nowhere near the whole
+     * difference. At the authored 30px nothing changes; at 14px the strokes
+     * come down about a third and the detail opens back up.
+     */
+    readonly property real w: Math.sqrt(Math.max(0, u))
+    property real thin: 1.0 * w
+    property real bold: 1.3 * w
 
     // Everything is authored in a 30x30 box and scaled from there.
     readonly property real u: Math.min(width, height) / 30
@@ -123,6 +141,26 @@ Shape {
                     // The runic B: two triangles sharing a vertical stem.
                     return [root.p(10, 9), root.p(20, 20), root.p(15, 24.5),
                             root.p(15, 5.5), root.p(20, 10), root.p(10, 21)]
+                case "display":
+                    /* A monitor on a stand. SCREENS used "app" -- the same
+                       plain window TASKBAR uses -- so two unrelated sections
+                       carried the same mark and the icon column told you
+                       nothing about either. A panel is not a window: it has a
+                       foot, and that is the whole difference at 14px. */
+                    return [root.p(3, 5), root.p(27, 5), root.p(27, 20),
+                            root.p(3, 20), root.p(3, 5)]
+                case "keyboard":
+                    // A wide, shallow deck. The keys are drawn as detail.
+                    return [root.p(2, 9), root.p(28, 9), root.p(28, 23),
+                            root.p(2, 23), root.p(2, 9)]
+                case "lock":
+                    /* Body of a padlock; the shackle is the curved pass.
+                       VPN and SECURITY were both the shield. They are not the
+                       same idea -- one is a tunnel you switch on, the other is
+                       the state of the machine -- and drawing them alike made
+                       the pair unreadable at a glance. */
+                    return [root.p(6, 14), root.p(24, 14), root.p(24, 26),
+                            root.p(6, 26), root.p(6, 14)]
                 }
                 return []
             }
@@ -263,6 +301,29 @@ Shape {
                     // An oscilloscope beat: the monitor.
                     return [[root.p(3, 15), root.p(9, 15), root.p(12, 7),
                              root.p(16, 23), root.p(19, 15), root.p(27, 15)]]
+                case "display":
+                    // Neck and foot, and a screen line so it is not an empty box.
+                    return [[root.p(15, 20), root.p(15, 25)],
+                            [root.p(9, 25), root.p(21, 25)],
+                            [root.p(6, 17), root.p(13, 17)]]
+                case "keyboard": {
+                    // Three rows of keys and a spacebar, as marks not outlines:
+                    // at 14px anything more closes up into a grey block.
+                    var keys = []
+                    for (var c = 0; c < 5; c++) {
+                        var x = 5 + c * 5
+                        keys.push([root.p(x, 12.5), root.p(x + 2.6, 12.5)])
+                        keys.push([root.p(x, 16.5), root.p(x + 2.6, 16.5)])
+                    }
+                    keys.push([root.p(9.5, 20), root.p(20.5, 20)])
+                    return keys
+                }
+                case "lock":
+                    // The shackle, squared off to match the rest of the set,
+                    // and the keyhole.
+                    return [[root.p(10, 14), root.p(10, 10), root.p(12, 7.5),
+                             root.p(18, 7.5), root.p(20, 10), root.p(20, 14)],
+                            [root.p(15, 18), root.p(15, 22)]]
                 }
                 return []
             }

@@ -301,7 +301,13 @@ Item {
                         glyph: pin.modelData.glyph
                         source: Prefs.iconPaths[pin.modelData.id] || ""
                         lit: pin.lit
-                        stroke: pin.lit ? Theme.accent : Theme.textMuted
+                        /* textBody, not textMuted. The same folder glyph was
+                           #c8c8c8 on the desktop and #6b6f6b in the dock --
+                           one object drawn at two weights for no reason, and
+                           at 1x the dock row read as disabled next to the lit
+                           logo beside it. These are the primary launchers;
+                           the label under them stays quiet, they do not. */
+                        stroke: pin.lit ? Theme.accent : Theme.textBody
                     }
 
                     /* Open indicator: a bar that grows out of nothing.
