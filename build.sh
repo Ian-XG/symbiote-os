@@ -83,6 +83,32 @@ cp "$WORK/build-qt/symbiote-shell-qt" "$QT_STAGE/"
 chmod +x "$QT_STAGE/symbiote-shell-qt"
 echo "I: qt shell $(du -h "$QT_STAGE/symbiote-shell-qt" | cut -f1)"
 
+# Stamp the image with the version it is.
+#
+# Nothing in the running system said which image it was. The About page had
+# "Symbiote Shell (Qt) 0.2" typed into the QML by hand -- still reading 0.2 in
+# the release that shipped as 2.2 -- and no row for the OS at all, so the one
+# place a person looks could not tell them what they had booted and a bug
+# report could not name the image it came from.
+#
+# VERSION at the root of the repository is the single place a human edits. The
+# commit and the date go in beside it, because "2.2" is what somebody chose and
+# the commit is what actually got built; when those two disagree the commit is
+# the one that answers the question.
+VER="$(tr -d ' \n' < "$SRC/VERSION" 2>/dev/null || true)"
+if [ -z "$VER" ]; then
+	echo "E: VERSION is missing or empty -- the image would not know what it is" >&2
+	exit 1
+fi
+# The commit comes in from the caller, because git inside the container is
+# looking at a bind mount owned by another uid and refuses it as "dubious
+# ownership" -- which would silently stamp every locally built image "unknown".
+COMMIT="${SYMBIOTE_COMMIT:-$(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo unknown)}"
+mkdir -p "$WORK/distro/config/includes.chroot/etc"
+printf '%s (%s, %s)\n' "$VER" "$COMMIT" "$(date -u +%Y-%m-%d)" \
+	> "$WORK/distro/config/includes.chroot/etc/symbiote-version"
+echo "I: image stamped $(cat "$WORK/distro/config/includes.chroot/etc/symbiote-version")"
+
 step "Configuring live-build"
 cd "$WORK/distro"
 chmod +x auto/config

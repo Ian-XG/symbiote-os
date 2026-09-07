@@ -53,6 +53,23 @@ void SystemMonitor::readStatic()
                           QRegularExpression::MultilineOption);
     const auto m = re.match(os);
     m_edition = m.hasMatch() ? m.captured(1) : QStringLiteral("Symbiote OS");
+
+    /* Which image is this?
+     *
+     * Nothing in the running system answered that. The About page carried
+     * "Symbiote Shell (Qt) 0.2" -- a string typed into the QML by hand, still
+     * saying 0.2 while the release it shipped in was 2.2 -- and no row at all
+     * for the OS. So the one place a person looks to find out what they
+     * booted was both silent and wrong, and a bug report could not name the
+     * image it came from.
+     *
+     * build.sh writes this file into the image from the repository's VERSION,
+     * so the release, the ISO's filename and this row cannot disagree. Absent
+     * -- running the shell from a working tree, which is how it is developed
+     * -- it says so rather than inventing a number. */
+    m_release = readAll(QStringLiteral("/etc/symbiote-version")).trimmed();
+    if (m_release.isEmpty())
+        m_release = QStringLiteral("development build");
 }
 
 void SystemMonitor::readCpu()

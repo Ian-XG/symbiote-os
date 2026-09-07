@@ -23,6 +23,7 @@ class SystemMonitor : public QObject
     Q_PROPERTY(QVariantMap network READ network NOTIFY changed)
     Q_PROPERTY(QString hostname READ hostname CONSTANT)
     Q_PROPERTY(QString edition READ edition CONSTANT)
+    Q_PROPERTY(QString release READ release CONSTANT)
     Q_PROPERTY(qint64 uptime READ uptime NOTIFY changed)
     /* Kernel release and the 1-minute load average. Read for the callouts
        around the hologram, which in the design carried invented figures
@@ -41,6 +42,7 @@ public:
     QVariantMap network() const { return m_network; }
     QString hostname() const { return m_hostname; }
     QString edition() const { return m_edition; }
+    QString release() const { return m_release; }
     qint64 uptime() const;
     QString kernel() const;
     qreal load() const;
@@ -64,7 +66,7 @@ private:
     void readStatic();
 
     QVariantMap m_cpu, m_memory, m_storage, m_thermal, m_network;
-    QString m_hostname, m_edition;
+    QString m_hostname, m_edition, m_release;
 
     // Cumulative counters need a previous sample to become a rate.
     qint64 m_prevIdle = 0, m_prevTotal = 0;

@@ -32,6 +32,7 @@ iso: image
 		-v "$(PWD)":/build \
 		-v symbiote-work:/work \
 		-w /build \
+		-e SYMBIOTE_COMMIT="$$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" \
 		$(IMAGE) ./build.sh
 	@cp "$(PWD)/$(ISO)" "$(HANDY)"
 	@echo "refreshed $(HANDY)"

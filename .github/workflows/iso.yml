@@ -70,6 +70,7 @@ jobs:
             -v "$PWD":/build \
             -v symbiote-work:/work \
             -w /build \
+            -e SYMBIOTE_COMMIT="$(git rev-parse --short HEAD)" \
             symbiote-build ./build.sh
 
       # The name live-build gives the image says nothing about which commit it
